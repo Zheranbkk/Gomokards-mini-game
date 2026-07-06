@@ -1,66 +1,66 @@
-# Gomokards 卡牌五子棋
+# Gomokards Card Gomoku
 
-## 重构进度
+## Refactoring Progress
 
-### 阶段 1：无玩法改动的结构拆分（已完成）
+### Phase 1: Structural Split Without Gameplay Changes (Completed)
 
-- 抽离规则层到 `engine/rules.py`
-- 抽离卡牌元数据到 `engine/cards.py`
-- 新增规则单元测试
+- Extracted the rules layer to `engine/rules.py`
+- Extracted card metadata to `engine/cards.py`
+- Added rule unit tests
 
-### 阶段 2A：状态收敛（已完成首版）
+### Phase 2A: State Consolidation (Initial Version Completed)
 
-- 新增 `engine/state.py`
-- 主脚本改为统一通过 `state.xxx` 管理运行态
-- `reset_game()` 改为委托 `state.reset_match()`
+- Added `engine/state.py`
+- Updated the main script to manage runtime state uniformly through `state.xxx`
+- Changed `reset_game()` to delegate to `state.reset_match()`
 
-### 阶段 2B：卡牌执行器注册表（已完成首版）
+### Phase 2B: Card Executor Registry (Initial Version Completed)
 
-- 新增 `engine/card_effects.py`
-- `handle_card_click()` 中即时卡牌逻辑改为执行器分发
-- 保留部署类卡牌“选点施放”流程
-- 新增 `tests/test_card_effects.py`
+- Added `engine/card_effects.py`
+- Changed instant-card logic in `handle_card_click()` to dispatch through executors
+- Preserved the “select a point to cast” flow for deployment cards
+- Added `tests/test_card_effects.py`
 
-### 阶段 2C：交叉规则回归测试矩阵（已完成首批）
+### Phase 2C: Cross-Rule Regression Test Matrix (First Batch Completed)
 
-- 新增 `tests/test_cross_rules.py`
-- 覆盖混淆/幽灵/换家/屏障/消除等关键交叉场景
+- Added `tests/test_cross_rules.py`
+- Covered key cross-rule scenarios such as confusion, ghost, swap sides, barrier, and elimination
 
-### 阶段 2D：资源缺失降级渲染（本次完成首版）
+### Phase 2D: Fallback Rendering for Missing Assets (Initial Version Completed This Time)
 
-本阶段目标：即使素材文件缺失，游戏仍可运行。
+Goal of this phase: keep the game runnable even when asset files are missing.
 
-#### 已完成
+#### Completed
 
-- `测试.py` 中素材加载改为“可选加载”：
-  - 文件缺失或加载失败时，不再崩溃。
-- 增加基础图形降级渲染：
-  - 普通黑白棋子、幽灵棋子、禁落点、俄罗斯方块都支持 `pygame.draw` 回退绘制。
-- 增加运行时提示：
-  - 检测到素材缺失时，界面底部提示“已启用基础图形渲染模式”。
+- Changed asset loading in `测试.py` to “optional loading”:
+  - Missing files or load failures no longer crash the game.
+- Added basic graphical fallback rendering:
+  - Normal black/white stones, ghost stones, forbidden placement points, and Tetris blocks all support fallback drawing with `pygame.draw`.
+- Added a runtime notification:
+  - When missing assets are detected, a message appears at the bottom of the UI: “Basic graphics rendering mode enabled.”
 
-### 阶段 2E：双语界面首版（本次完成）
+### Phase 2E: Initial Bilingual UI Version (Completed This Time)
 
-- 首次启动新增语言选择弹窗（English / 简体中文）。
-- UI 固定文案、卡牌名称、卡牌说明、关键战报提示支持中英文切换。
-- 新增 `engine/i18n.py` 集中维护翻译表，减少硬编码文本。
+- Added a language selection dialog on first launch (English / Simplified Chinese).
+- UI fixed text, card names, card descriptions, and key battle-log messages now support switching between English and Chinese.
+- Added `engine/i18n.py` to centrally maintain the translation table and reduce hard-coded text.
 
-## 后续阶段建议（2E+）
+## Suggested Later Phases (2E+)
 
-1. 输入处理 / 规则结算 / 渲染进一步分层
-2. 增加更细粒度回归测试（落子流程与事件循环）
+1. Further separate input handling, rule resolution, and rendering
+2. Add more fine-grained regression tests for the stone-placement flow and event loop
 
-## 资源加载策略说明
+## Asset Loading Strategy
 
-当前实现支持两种模式：
+The current implementation supports two modes:
 
-- 完整素材模式：使用本地图片/字体资源
-- 降级渲染模式：素材缺失时自动绘制基础图形（可运行，视觉简化）
+- Full asset mode: uses local image/font resources
+- Fallback rendering mode: automatically draws basic graphics when assets are missing (runnable with simplified visuals)
 
-### 字体策略（中文显示防乱码）
+### Font Strategy (Preventing Garbled Chinese Text)
 
-- 字体加载采用三级回退：
-  1. 项目内置字体文件（仓库资源目录）
-  2. 系统常见中文字体候选链（macOS / Windows / Linux）
-  3. 最终通用 fallback 字体
-- 建议发布时至少随包附带一份可商用中文字体（如思源黑体 / Noto Sans CJK），可显著降低“方块字”问题。
+- Font loading uses a three-level fallback:
+  1. Bundled font files inside the project (repository resource directory)
+  2. A candidate chain of common system Chinese fonts (macOS / Windows / Linux)
+  3. A final generic fallback font
+- When publishing, it is recommended to bundle at least one commercially usable Chinese font (such as Source Han Sans / Noto Sans CJK), which can significantly reduce “tofu character” issues.
