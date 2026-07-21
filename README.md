@@ -56,6 +56,7 @@ The current implementation supports two modes:
 
 - Full asset mode: uses local image/font resources
 - Fallback rendering mode: automatically draws basic graphics when assets are missing (runnable with simplified visuals)
+- Pending with gomoku only mode
 
 ### Font Strategy (Preventing Garbled Chinese Text)
 
