@@ -19,6 +19,7 @@ public:
     void BoardClick(FIntPoint Coordinate);
     void Cancel();
     bool IsTargeting() const { return Selection.IsActive(); }
+    Gomokards::ECardId SelectedCard() const { return Selection.Card; }
     const Gomokards::FMatchState& GetMatch() const;
 private:
     void Submit(const Gomokards::FActionRequest& Request, const FString& ActionLabel);

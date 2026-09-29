@@ -11,10 +11,14 @@ enum class ECardId : uint8
     Polarity, Confusion, Barrier, BackToBasics, Ghost, Tetris, FastDuel, Undo, Joker
 };
 
+// Fixed target domains for the current cards, not a generalized targeting framework.
+enum class ECardTarget : uint8 { None, Intersection, RegionTopLeft, CellCenter };
+
 struct FCardDefinition
 {
     ECardId Id;
-    bool bRequiresTarget;
+    ECardTarget Target;
+    bool RequiresTarget() const { return Target != ECardTarget::None; }
 };
 
 GOMOKARDS_API const FCardDefinition* FindCardDefinition(ECardId Id);

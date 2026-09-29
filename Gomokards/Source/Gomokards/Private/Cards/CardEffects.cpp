@@ -34,6 +34,22 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         if (!Target.IsSet() || !FBoard::Contains(Target.GetValue())) { return false; }
         Candidate.Board.At(Target.GetValue()) = {EStone::Empty, true};
         return true;
+    case ECardId::Polarity:
+        if (!Target.IsSet() || !FBoard::ContainsAnchor(Target.GetValue())) { return false; }
+        for (FIntPoint Corner : FBoard::RegionCorners(Target.GetValue()))
+        { Candidate.Board.At(Corner).Stone = OppositeStone(Candidate.Board.At(Corner).Stone); }
+        return true;
+    case ECardId::Barrier:
+        if (!Target.IsSet() || !FBoard::ContainsAnchor(Target.GetValue())) { return false; }
+        Candidate.Board.Barriers.AddUnique(Target.GetValue());
+        return true;
+    case ECardId::Confusion:
+        return true; // Common resolver owns the explicit old-duration / refresh ordering.
+    case ECardId::BackToBasics:
+        Candidate.bCardsDisabled = true;
+        Candidate.Board.Barriers.Empty();
+        for (FCell& Cell : Candidate.Board.Cells) { Cell.bForbidden = false; }
+        return true; // Stones and remaining hands are intentionally retained.
     default:
         return false;
     }

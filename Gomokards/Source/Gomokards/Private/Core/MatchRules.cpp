@@ -31,11 +31,29 @@ bool HasWinningLine(const FBoard& Board, FIntPoint Origin, EStone Stone)
         for (int32 Sign : {-1, 1})
         {
             const FIntPoint Step = Direction * Sign;
-            for (FIntPoint P = Origin + Step; FBoard::Contains(P) && Board.At(P).Stone == Stone; P += Step) { ++Count; }
+            for (FIntPoint P = Origin + Step; FBoard::Contains(P) && Board.At(P).Stone == Stone; P += Step)
+            {
+                if (Board.IsLinkBlocked(P-Step, P)) { break; }
+                ++Count;
+            }
         }
         if (Count >= FBoard::WinLength) { return true; }
     }
     return false;
+}
+
+FMatchResult EvaluateBoardResult(const FBoard& Board)
+{
+    bool bBlack = false, bWhite = false;
+    for (int32 I=0; I<FBoard::Size*FBoard::Size; ++I)
+    {
+        const EStone Stone = Board.Cells[I].Stone;
+        if (HasWinningLine(Board,FBoard::ToCoordinate(I),Stone))
+        { bBlack |= Stone == EStone::Black; bWhite |= Stone == EStone::White; }
+    }
+    if (bBlack && bWhite) { return {EMatchStatus::Draw, EStone::Empty}; }
+    if (bBlack || bWhite) { return {EMatchStatus::Won, bBlack ? EStone::Black : EStone::White}; }
+    return {};
 }
 
 bool HasSuccessfulBlock(const FBoard& Board, FIntPoint Origin, EStone PlacedStone)
@@ -76,12 +94,17 @@ EActionError ValidateAction(const FMatchState& State, const FActionRequest& Requ
         return EActionError::None;
     case EActionType::PlayCard:
     {
+        if (State.bCardsDisabled) { return EActionError::CardsDisabled; }
         const auto* Definition = FindCardDefinition(Request.Card);
         if (!Definition) { return EActionError::UnsupportedCard; }
         if (!Actor.Hand.Contains(Request.Card)) { return EActionError::CardNotOwned; }
-        if (Definition->bRequiresTarget)
+        if (Definition->RequiresTarget())
         {
-            if (!Request.Target.IsSet() || !FBoard::Contains(Request.Target.GetValue())) { return EActionError::InvalidTarget; }
+            if (!Request.Target.IsSet()) { return EActionError::InvalidTarget; }
+            const FIntPoint Target = Request.Target.GetValue();
+            const bool bValid = Definition->Target == ECardTarget::Intersection
+                ? FBoard::Contains(Target) : FBoard::ContainsAnchor(Target);
+            if (!bValid) { return EActionError::InvalidTarget; }
         }
         else if (Request.Target.IsSet()) { return EActionError::InvalidTarget; }
         return EActionError::None;
@@ -97,9 +120,10 @@ static bool HasLegalAction(const FMatchState& State)
     {
         if (Cell.Stone == EStone::Empty && !Cell.bForbidden) { return true; }
     }
+    if (State.bCardsDisabled) { return false; }
     for (ECardId Card : State.Players[State.CurrentPlayerIndex].Hand)
     {
-        // All four Phase 1 cards are playable on a full board (including empty-hand Steal).
+        // All current cards have a legal target/effect even on a full board, including repeat Barriers.
         if (FindCardDefinition(Card)) { return true; }
     }
     return false;
@@ -114,7 +138,7 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
     auto& Actor = Candidate.Players[ActorIndex];
     if (Request.Type == EActionType::PlaceStone)
     {
-        const EStone PlacedStone = EffectivePlacementStone(Actor);
+        const EStone PlacedStone = EffectivePlacementStone(Actor, State.ConfusionActionsRemaining > 0);
         Candidate.Board.At(Request.Coordinate).Stone = PlacedStone;
         if (HasWinningLine(Candidate.Board, Request.Coordinate, PlacedStone))
         { Candidate.Result = {EMatchStatus::Won, PlacedStone, EDecisionReason::None}; }
@@ -126,6 +150,16 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
         Actor.Hand.RemoveAt(Actor.Hand.Find(Request.Card));
         if (!ExecuteCardEffect(Candidate, ActorIndex, Request.Card, Request.Target))
         { return {EActionError::UnsupportedCard, false}; }
+    }
+    // Only a successful resolution consumes the effect that was active on entry.
+    // A recast then replaces the old duration with two future actions; Basics clears it.
+    Candidate.ConfusionActionsRemaining = FMath::Max(0, State.ConfusionActionsRemaining-1);
+    if (Request.Type == EActionType::PlayCard)
+    {
+        if (Request.Card == ECardId::Confusion) { Candidate.ConfusionActionsRemaining = 2; }
+        if (Request.Card == ECardId::BackToBasics) { Candidate.ConfusionActionsRemaining = 0; }
+        if (Request.Card == ECardId::Polarity || Request.Card == ECardId::BackToBasics)
+        { Candidate.Result = EvaluateBoardResult(Candidate.Board); }
     }
     ++Candidate.CompletedActions;
     if (Candidate.Result.Status == EMatchStatus::InProgress)

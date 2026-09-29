@@ -65,8 +65,7 @@ bool FInvalidActions::RunTest(const FString& Parameters)
     RejectUnchanged(*this, State, FActionRequest::Place(0, {2, 2}), EActionError::Occupied);
     RejectUnchanged(*this, State, FActionRequest::Place(0, {3, 3}), EActionError::Forbidden);
     RejectUnchanged(*this, State, FActionRequest::Play(0, ECardId::Steal), EActionError::CardNotOwned);
-    for (ECardId Id : {ECardId::Invalid, ECardId::Ghost, ECardId::Polarity, ECardId::Confusion,
-        ECardId::Barrier, ECardId::BackToBasics, ECardId::Tetris, ECardId::FastDuel, ECardId::Undo, ECardId::Joker, static_cast<ECardId>(255)})
+    for (ECardId Id : {ECardId::Invalid, ECardId::Ghost, ECardId::Tetris, ECardId::FastDuel, ECardId::Undo, ECardId::Joker, static_cast<ECardId>(255)})
     { RejectUnchanged(*this, State, FActionRequest::Play(0, Id), EActionError::UnsupportedCard); }
     RejectUnchanged(*this, State, FActionRequest::Play(0, ECardId::TacticalNuke), EActionError::InvalidTarget);
     RejectUnchanged(*this, State, FActionRequest::Play(0, ECardId::TacticalNuke, FIntPoint(19, 4)), EActionError::InvalidTarget);
@@ -261,7 +260,7 @@ bool FNukeTransactions::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeterminism, "Gomokards.Phase1.DeterminismAndPool", Flags)
 bool FDeterminism::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("Only four playable definitions"), GetPlayableCards().Num(), 4);
+    TestEqual(TEXT("Exactly eight playable definitions (Phase 3A pool)"), GetPlayableCards().Num(), 8);
     for (int32 Seed = 0; Seed < 32; ++Seed)
     {
         FMatchState A(Seed), B(Seed);

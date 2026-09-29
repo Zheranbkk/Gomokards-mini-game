@@ -12,6 +12,9 @@ struct GOMOKARDS_API FBoardLayout
     static constexpr float Extent = CellSize * FBoard::Size;
     static TOptional<FIntPoint> ToCoordinate(FVector2D Local);
     static FVector2D Center(FIntPoint Coordinate);
+    static TOptional<FIntPoint> TargetAt(FVector2D Local, ECardId Card);
+    // Endpoints of the small cross, derived from the core's four-corner cell definition.
+    static TStaticArray<FVector2D, 4> BarrierCross(FIntPoint Anchor);
 };
 
 // Only local intent: no board, hands, result or RNG copy lives here.
@@ -27,6 +30,8 @@ struct GOMOKARDS_API FTargetSelection
 
 GOMOKARDS_API FString CardLabel(ECardId Card);
 GOMOKARDS_API FString StoneLabel(EStone Stone);
+GOMOKARDS_API FString EffectLabel(const FMatchState& State);
+GOMOKARDS_API FString TargetingLabel(ECardId Selected);
 GOMOKARDS_API FString ResultLabel(const FMatchState& State);
 GOMOKARDS_API FString RejectionLabel(EActionError Error);
 }

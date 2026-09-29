@@ -8,7 +8,7 @@ enum class EActionType : uint8 { PlaceStone, PlayCard };
 enum class EActionError : uint8
 {
     None, MatchStopped, InvalidState, WrongPlayer, UnsupportedAction,
-    InvalidCoordinate, Occupied, Forbidden, UnsupportedCard, CardNotOwned, InvalidTarget
+    InvalidCoordinate, Occupied, Forbidden, UnsupportedCard, CardNotOwned, InvalidTarget, CardsDisabled
 };
 
 struct FActionRequest
@@ -31,6 +31,7 @@ struct FActionResult
 };
 
 GOMOKARDS_API bool HasWinningLine(const FBoard& Board, FIntPoint Origin, EStone Stone);
+GOMOKARDS_API FMatchResult EvaluateBoardResult(const FBoard& Board);
 // Exact legacy post-placement predicate; deliberately ignores forbidden metadata/history.
 GOMOKARDS_API bool HasSuccessfulBlock(const FBoard& Board, FIntPoint Origin, EStone PlacedStone);
 GOMOKARDS_API EActionError ValidateAction(const FMatchState& State, const FActionRequest& Request);

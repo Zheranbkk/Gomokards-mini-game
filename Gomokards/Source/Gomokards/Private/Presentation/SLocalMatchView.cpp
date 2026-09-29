@@ -51,17 +51,43 @@ public:
                     ESlateDrawEffect::None, Cell.Stone == EStone::Black ? FLinearColor(.015f,.015f,.015f) : FLinearColor(.96f,.96f,.96f));
             }
         }
-        if (Pinned->IsTargeting() && Hover.IsSet())
+        const auto DrawBarrier = [&](FIntPoint Anchor, FLinearColor Color)
         {
-            const FVector2D Center = FBoardLayout::Center(Hover.GetValue());
-            FSlateDrawElement::MakeLines(Out, Layer+4, G.ToPaintGeometry(),
-                {Center+FVector2D(-14,-14),Center+FVector2D(14,-14),Center+FVector2D(14,14),Center+FVector2D(-14,14),Center+FVector2D(-14,-14)},
-                ESlateDrawEffect::None, FLinearColor::Yellow, true, 2);
+            const auto Ends = FBoardLayout::BarrierCross(Anchor);
+            FSlateDrawElement::MakeLines(Out, Layer+4, G.ToPaintGeometry(), TArray<FVector2D>{Ends[0],Ends[1]}, ESlateDrawEffect::None, Color, true, 3);
+            FSlateDrawElement::MakeLines(Out, Layer+4, G.ToPaintGeometry(), TArray<FVector2D>{Ends[2],Ends[3]}, ESlateDrawEffect::None, Color, true, 3);
+        };
+        for (FIntPoint Anchor : Board.Barriers) { DrawBarrier(Anchor, FLinearColor(0,.8f,1)); }
+        const auto Target = Hover.IsSet() ? FBoardLayout::TargetAt(Hover.GetValue(),Pinned->SelectedCard()) : TOptional<FIntPoint>{};
+        if (Pinned->IsTargeting() && Target.IsSet())
+        {
+            const FIntPoint Anchor = Target.GetValue();
+            if (Pinned->SelectedCard() == ECardId::Barrier) { DrawBarrier(Anchor,FLinearColor::Yellow); }
+            else
+            {
+                const FVector2D First = FBoardLayout::Center(Anchor)-FVector2D(14);
+                const FIntPoint LastPoint = Pinned->SelectedCard() == ECardId::Polarity ? FBoard::RegionCorners(Anchor)[3] : Anchor;
+                const FVector2D Last = FBoardLayout::Center(LastPoint)+FVector2D(14);
+                FSlateDrawElement::MakeLines(Out, Layer+5, G.ToPaintGeometry(),
+                    TArray<FVector2D>{First,{Last.X,First.Y},Last,{First.X,Last.Y},First},
+                    ESlateDrawEffect::None, FLinearColor::Yellow, true, 2);
+            }
         }
-        return Layer+4;
+        else if (!Pinned->IsTargeting() && Target.IsSet())
+        {
+            const auto& Match = Pinned->GetMatch();
+            const auto& Actor = Match.Players[Match.CurrentPlayerIndex];
+            if (ValidateAction(Match,FActionRequest::Place(Actor.Id,Target.GetValue())) == EActionError::None)
+            {
+                const bool bBlack = EffectivePlacementStone(Actor,Match.ConfusionActionsRemaining>0) == EStone::Black;
+                FSlateDrawElement::MakeBox(Out, Layer+5, G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
+                    &StoneBrush, ESlateDrawEffect::None, bBlack ? FLinearColor(0,0,0,.35f) : FLinearColor(1,1,1,.35f));
+            }
+        }
+        return Layer+5;
     }
     virtual FReply OnMouseMove(const FGeometry& G, const FPointerEvent& E) override
-    { Hover = FBoardLayout::ToCoordinate(G.AbsoluteToLocal(E.GetScreenSpacePosition())); Invalidate(EInvalidateWidgetReason::Paint); return FReply::Handled(); }
+    { Hover = G.AbsoluteToLocal(E.GetScreenSpacePosition()); Invalidate(EInvalidateWidgetReason::Paint); return FReply::Handled(); }
     virtual void OnMouseLeave(const FPointerEvent& E) override { Hover.Reset(); Invalidate(EInvalidateWidgetReason::Paint); SLeafWidget::OnMouseLeave(E); }
     virtual FReply OnMouseButtonDown(const FGeometry& G, const FPointerEvent& E) override
     {
@@ -69,14 +95,14 @@ public:
         if (E.GetEffectingButton() == EKeys::RightMouseButton) { Pinned->Cancel(); }
         else if (E.GetEffectingButton() == EKeys::LeftMouseButton)
         {
-            const auto Coordinate = FBoardLayout::ToCoordinate(G.AbsoluteToLocal(E.GetScreenSpacePosition()));
-            if (Coordinate.IsSet()) { Pinned->BoardClick(Coordinate.GetValue()); }
+            const auto Coordinate = FBoardLayout::TargetAt(G.AbsoluteToLocal(E.GetScreenSpacePosition()),Pinned->SelectedCard());
+            Pinned->BoardClick(Coordinate.Get(FIntPoint(-1,-1)));
         }
         return FReply::Handled().SetUserFocus(Pinned.ToSharedRef());
     }
 private:
     TWeakPtr<SLocalMatchView> View;
-    TOptional<FIntPoint> Hover;
+    TOptional<FVector2D> Hover;
 };
 
 void SLocalMatchView::Construct(const FArguments& Args)
@@ -99,9 +125,11 @@ void SLocalMatchView::Construct(const FArguments& Args)
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(SButton).Text(FText::FromString(TEXT("New Match / Restart"))).OnClicked_Lambda([this]{Owner->NewMatch(); Feedback=TEXT("New match. Black starts; both hands are empty."); return FReply::Handled().SetUserFocus(SharedThis(this));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Selection.IsActive() ? TEXT("NUKE TARGETING\nClick a point. Right-click, Escape or click Nuke again to cancel.") : TEXT("PLACEMENT MODE\nClick a point to place a stone.\nOnly the active hand can play cards."));})]
+                    [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(TargetingLabel(Selection.Card));})]
+                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
+                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Text_Lambda([this]{return FText::FromString(EffectLabel(GetMatch()));})]
                     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
-                    +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Development view: both hands visible.\nRed X = forbidden point.\nNo hidden hand rule is implied.")))]
+                    +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Development view: both hands visible.\nRed X = forbidden point. Cyan cross = Barrier.\nNo hidden hand rule is implied.")))]
                 ]]
             +SVerticalBox::Slot().AutoHeight().Padding(0,12,0,0)
             [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Feedback);})]
@@ -128,7 +156,7 @@ void SLocalMatchView::Refresh()
         {
             Hands->AddSlot().AutoHeight().Padding(0,2)
                 [SNew(SButton).Text(FText::FromString(CardLabel(Card)))
-                    .IsEnabled(Index==Match.CurrentPlayerIndex && Match.Result.Status==EMatchStatus::InProgress)
+                    .IsEnabled(Index==Match.CurrentPlayerIndex && Match.Result.Status==EMatchStatus::InProgress && !Match.bCardsDisabled)
                     .OnClicked_Lambda([this, Id=Player.Id, Card]{return CardClick(Id,Card);})];
         }
     }
@@ -143,14 +171,14 @@ void SLocalMatchView::BoardClick(FIntPoint Coordinate)
     if (GetMatch().Result.Status != EMatchStatus::InProgress) { Feedback=RejectionLabel(EActionError::MatchStopped); return; }
     const bool bTarget = Selection.IsActive();
     const auto Request = Selection.BoardRequest(GetMatch(),Coordinate);
-    Submit(Request, FString::Printf(TEXT("%s at (%d, %d)."),bTarget ? TEXT("Nuke used") : TEXT("Stone placed"),Coordinate.X,Coordinate.Y));
+    Submit(Request, FString::Printf(TEXT("%s at (%d, %d)."),bTarget ? *CardLabel(Request.Card) : TEXT("Stone placed"),Coordinate.X,Coordinate.Y));
 }
 FReply SLocalMatchView::CardClick(FPlayerId Player, ECardId Card)
 {
     const auto* Definition = FindCardDefinition(Card);
-    if (Definition && Definition->bRequiresTarget)
+    if (Definition && Definition->RequiresTarget())
     {
-        if (Selection.Toggle(GetMatch(),Card)) { BoardView->Invalidate(EInvalidateWidgetReason::Paint); Feedback=Selection.IsActive() ? TEXT("Nuke selected. No action spent yet.") : TEXT("Targeting cancelled. Match unchanged."); }
+        if (Selection.Toggle(GetMatch(),Card)) { BoardView->Invalidate(EInvalidateWidgetReason::Paint); Feedback=Selection.IsActive() ? CardLabel(Card)+TEXT(" selected. No action spent yet.") : TEXT("Targeting cancelled. Match unchanged."); }
     }
     else { Selection.Clear(); Submit(FActionRequest::Play(Player,Card),CardLabel(Card)+TEXT(" played.")); }
     return FReply::Handled().SetUserFocus(SharedThis(this));

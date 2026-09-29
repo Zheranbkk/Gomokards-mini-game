@@ -22,6 +22,11 @@ struct GOMOKARDS_API FBoard
     static constexpr int32 Size = 19;
     static constexpr int32 WinLength = 5;
     TStaticArray<FCell, Size * Size> Cells;
+    TArray<FIntPoint> Barriers; // Unique top-left anchors of the affected four-corner cells.
+
+    static bool ContainsAnchor(FIntPoint Anchor);
+    static TStaticArray<FIntPoint, 4> RegionCorners(FIntPoint Anchor);
+    bool IsLinkBlocked(FIntPoint From, FIntPoint To) const;
 
     static bool Contains(FIntPoint P);
     // Checked conversions: callers validate untrusted coordinates before using these.
@@ -40,7 +45,7 @@ struct FPlayerState
     bool operator==(const FPlayerState&) const = default;
 };
 
-enum class EMatchStatus : uint8 { InProgress, Won, AwaitingRuleDecision };
+enum class EMatchStatus : uint8 { InProgress, Won, Draw, AwaitingRuleDecision };
 enum class EDecisionReason : uint8 { None, NoLegalAction };
 
 struct FMatchResult
@@ -60,6 +65,8 @@ struct GOMOKARDS_API FMatchState
     int32 CurrentPlayerIndex = 0;
     uint64 CompletedActions = 0;
     FMatchResult Result;
+    int32 ConfusionActionsRemaining = 0;
+    bool bCardsDisabled = false;
     FRandomStream Random;
 
     explicit FMatchState(int32 Seed = 0);
@@ -70,5 +77,5 @@ struct GOMOKARDS_API FMatchState
 // All current two-player assumptions live here, rather than inside card effects.
 GOMOKARDS_API int32 SingleOpponentIndex(const FMatchState& State, int32 PlayerIndex);
 GOMOKARDS_API EStone OppositeStone(EStone Stone);
-GOMOKARDS_API EStone EffectivePlacementStone(const FPlayerState& Player);
+GOMOKARDS_API EStone EffectivePlacementStone(const FPlayerState& Player, bool bConfused = false);
 }
