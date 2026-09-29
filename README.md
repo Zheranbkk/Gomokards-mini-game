@@ -172,3 +172,66 @@ Inspect the exported `index.json` test counts, not just process exit status. Gen
 - Deliberately accepted constraints: fixed board/win constants, two current players, hands containing interchangeable card IDs rather than per-instance metadata, simple explicit dispatch, and copying a small state per action. These avoid a speculative framework while leaving player collections, stone identity resolution, card definitions and the action boundary available for later extension.
 - Ghost, Tetris, Polarity, Confusion, Barrier, Back to Basics, Fast Duel, Undo/Joker, advanced effects, four-player rules, UI/Blueprint gameplay, board Actors, GameMode integration and networking remain unsupported. No additional modules/plugins/services were introduced.
 - Next recommended phase: a minimal presentation adapter that sends requests and reads const state, after separate authorization. Resolve remaining Phase 0 decisions before adding affected cards/modes. Phase 2 has not started.
+
+## Unreal Migration Phase 2 Local Playable Slice
+
+Implementation continues from Phase 1 `e1a55e2d8bec6a4a486709f26f43b902d5eb415f` on `ue-migration`. **Phase 2 acceptance is complete:** agent-performed compilation, automation and implementation checks passed, and the user personally completed and passed hands-on gameplay validation. The Phase 0/1 sections above are retained as historical records.
+
+### Impact check and ownership
+
+The Phase 1 state, rules, card definitions/effects and all nine existing tests required **no changes**. Required integration work is limited to a runtime owner, local input/presentation, a startup map and three adapter/runtime tests. Later work may replace the development HUD with UMG and add localization. A generalized rules framework, reflected copy of the whole match, replication and new card mechanics are premature for this slice.
+
+- `Source/Gomokards/Public/Runtime/LocalMatchGameMode.h` and its private implementation define `ALocalMatchGameMode`, the sole owner of one live `FMatchState`. It exposes a const query, submits to `ResolveAction`, returns rejection results unchanged, and broadcasts once on an accepted action or new match. There is no mutable Blueprint state API.
+- Normal initialization and New Match derive a session seed from a new GUID. The core retains its owned deterministic `FRandomStream`. An explicit map URL option `?Seed=<integer>` is available for reproducible debugging; the normal Play/restart path does not silently reuse seed zero.
+- `ALocalMatchPlayerController` creates/removes one local viewport view, shows the cursor and directs UI input to it. There is one controller for the two-player hot-seat match, with no controller-side match copy.
+- `Public/Presentation/MatchPresentation.h` and its private implementation centralize pixel-to-integer conversion, result/rejection/card labels and small local target-selection intent. Pixel hit bounds are half-open; an outside click never clamps into a legal point.
+- `Private/Presentation/SLocalMatchView.h/.cpp` defines the replaceable native Slate view and its board widget. Input becomes a placement/card request, goes through GameMode and the core, then the view reads the committed state. Rendered stones never determine occupancy. Selection, hover and feedback are presentation-only; hands and board are not mirrored in widget-owned arrays.
+- `Content/Maps/LocalMatch.umap` is the only new content asset: an intentionally empty gameplay map. `Config/DefaultEngine.ini` selects it for editor startup and game startup, with `LocalMatchGameMode` as the default GameMode. The existing module adds only private `Slate` and `SlateCore` dependencies. No runtime plugin, Blueprint, material or legacy artwork is required.
+
+### Launch and controls
+
+Build the Development Editor target as in Phase 1, open `Gomokards/Gomokards.uproject`, and Play the default `LocalMatch` map (prefer a viewport or New Editor Window of at least 1100 x 800). No console command or state injection is needed to play. Both hands begin empty and cards are earned by successful blocks.
+
+- Left-click a board point to place a stone. The active player, action count and action/rejection feedback are visible.
+- Click an active-hand Restock, Swap Hands or Steal to play it immediately. Inactive-hand buttons are disabled. Card identity is always `ECardId`, never display text.
+- Click Tactical Nuke to enter targeting, then click an occupied or empty board point to execute it. A yellow hover outline previews the coordinate; red squares with white X marks show forbidden points.
+- Escape, right-click, or clicking Nuke again cancels targeting without submitting an action. Accepted changes and restart clear local selection.
+- New Match / Restart reconstructs a clean match with a fresh seed and clears selection, hands, stones, forbidden points and result. Black starts again.
+- A winner is displayed and gameplay is blocked after a win. `AwaitingRuleDecision` is explicitly labelled, assigns no invented win/draw, and permits restart.
+
+The only playable pool remains Restock, Swap Hands, Steal and Tactical Nuke. Each accepted placement or card play completes one action. The existing empty-opponent Steal behavior, consume-before-swap order, exactly-one blocking reward and winning-block reward are preserved by the unchanged core.
+
+### Validation and acceptance
+
+Agent-performed validation: Development Editor build succeeded with Unreal **5.8.2**, MSVC 14.44 and Windows SDK 10.0.22621.0. Automation result: **12 passed, 0 failed, 0 test warnings, 0 skipped** (nine unchanged Phase 1 groups plus three Phase 2 groups). `Private/Tests/MatchPresentationTests.cpp` covers:
+
+- `BoardCoordinates`: all 361 painted centers and edge/outside hit bounds.
+- `TargetingIntent`: select/reselect/cancel without state or RNG mutation, complete targeted requests, invalid-target atomicity, stale-player rejection and explicit terminal labels.
+- `RuntimeOwner`: a transient runtime world/owner, deterministic explicit seeding, acceptance versus rejection notifications, rejection full-state equality and clean fresh-seed restart.
+
+Use the Phase 1 build/test commands with `Automation RunTests Gomokards` and report directory `Saved/Automation/Phase2` to run all 12. Read the exported `index.json` counts. The runtime-owner test creates a transient world; the Phase 1 tests remain UI/world-independent. Generated reports, binaries and caches are ignored.
+
+Agent startup verification also confirmed that `/Game/Maps/LocalMatch` loaded with `LocalMatchGameMode`. The agent's earlier window-capture failure did not establish gameplay results and is no longer an acceptance blocker.
+
+**User-performed manual gameplay validation: completed and passed.** The user personally tested the playable build and reported that all current Phase 2 gameplay logic works correctly. This hands-on result is user-reported, distinct from the agent's build, automated tests and static review. The requested manual validation gate is satisfied.
+
+### Manual Gameplay Validation Checklist
+
+The Phase 2 smoke pass below is complete per the user's report; retain this checklist for later regression passes in Unreal:
+
+- Open `LocalMatch` and Play: an empty 19x19 board, empty hands and Black to act are visible. Place legal stones: the correct colors render and the turn changes once. Click an occupied point: feedback appears without spending an action.
+- Close a known opposing run at both ends: exactly one card is added to the acting hand. Ordinary non-blocking placement adds none.
+- Play Restock: consume it and draw two. Play Swap Hands: consume it before exchanging the remaining hands. Play Steal: transfer one opposing card; against an empty hand, still consume the card and action.
+- Select Nuke and cancel using Escape, right-click or reselect: the hand, board and turn stay unchanged. Execute Nuke on occupied and empty points: each target becomes an empty, visibly forbidden point. Normal placement there is rejected without spending an action.
+- Complete five in a row: show the correct winner and block further gameplay. Where practical, also close an opposing run with the winning placement and observe its one-card reward.
+- Restart both from a result and with targeting pending: clear stones, forbidden points, hands, result and targeting, and start with Black again.
+
+For future gameplay phases, the agent inspects C++ and Blueprint/Slate/UMG logic, checks state ownership and asset/config references, compiles, runs relevant Automation Tests and reports a concise manual checklist. The user performs hands-on gameplay validation; the agent does not play scenarios unless explicitly requested. Final commits require the user's pass report unless that gate is explicitly waived. Screenshots, when needed for editor inspection, do not substitute for gameplay validation.
+
+### Deliberate limitations and next step
+
+This is a fixed-size development HUD using engine-native lines, rounded stone shapes, colors and English text. Both hands are visible for testing, which establishes no permanent hand-visibility rule. It has no production responsive layout, art, audio, animation, gamepad/touch interface, saved games or packaged-build validation. Slate keeps the plain core independent of reflection; a future UMG view should add only the query/intent bridge it actually needs.
+
+Preserved extension seams are the player collection (the view iterates it), player versus stone identity, stable card IDs/definitions, centralized coordinate conversion, local target intent and authoritative resolve/refresh boundary. No four-player rules, dynamic board, generic target framework, advanced effects, additional cards, special modes or networking were added. The Phase 0 unresolved rules remain unresolved, including no-legal-action adjudication and the gated card/mode interactions.
+
+Phase 2 is accepted. Future work should prioritize playtesting feedback and rule clarification before migrating further cards or modes; no Phase 3 implementation is included.
