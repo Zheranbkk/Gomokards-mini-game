@@ -1,0 +1,12 @@
+# Unreal Engine generated files
+Gomokards/.vs/
+Gomokards/Binaries/
+Gomokards/DerivedDataCache/
+Gomokards/Intermediate/
+Gomokards/Saved/
+
+# Generated Visual Studio project files
+Gomokards/*.sln
+Gomokards/*.slnx
+Gomokards/*.VC.db
+Gomokards/*.VC.opendb
