@@ -45,6 +45,8 @@ struct FPlayerState
     bool operator==(const FPlayerState&) const = default;
 };
 
+enum class EGhostPhase : uint8 { None, Preparation, Hidden };
+
 enum class EMatchStatus : uint8 { InProgress, Won, Draw, AwaitingRuleDecision };
 enum class EDecisionReason : uint8 { None, NoLegalAction };
 
@@ -56,7 +58,8 @@ struct FMatchResult
     bool operator==(const FMatchResult&) const = default;
 };
 
-// Value state owned by the caller. Only ResolveAction/Reset should mutate a live match.
+// Value state owned by the caller. ResolveAction/Reset and the explicit BeginGhostHidden
+// runtime transition are the only mutation boundaries for a live match.
 // Public fields also allow explicit, UI-free test fixtures; they are not a UI write API.
 struct GOMOKARDS_API FMatchState
 {
@@ -67,6 +70,9 @@ struct GOMOKARDS_API FMatchState
     FMatchResult Result;
     int32 ConfusionActionsRemaining = 0;
     bool bCardsDisabled = false;
+    EGhostPhase GhostPhase = EGhostPhase::None;
+    int32 GhostPlacementsCompleted = 0;
+    static constexpr int32 GhostPlacementLimit = 6;
     FRandomStream Random;
 
     explicit FMatchState(int32 Seed = 0);

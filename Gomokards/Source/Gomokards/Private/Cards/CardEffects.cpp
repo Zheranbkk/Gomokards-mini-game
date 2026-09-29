@@ -45,6 +45,10 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         return true;
     case ECardId::Confusion:
         return true; // Common resolver owns the explicit old-duration / refresh ordering.
+    case ECardId::Ghost:
+        Candidate.GhostPhase = EGhostPhase::Preparation;
+        Candidate.GhostPlacementsCompleted = 0;
+        return true; // Timer transition belongs to the runtime owner, never to the core.
     case ECardId::BackToBasics:
         Candidate.bCardsDisabled = true;
         return true; // Only future card use is disabled; existing state/effects continue normally.

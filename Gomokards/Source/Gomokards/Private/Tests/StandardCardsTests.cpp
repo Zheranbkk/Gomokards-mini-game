@@ -99,7 +99,7 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
         CardState.ConfusionActionsRemaining=2;
         CardState.Players[0].Hand={Definition.Id};
         const auto R=Play3(CardState,Definition.Id,Definition.RequiresTarget() ? TOptional<FIntPoint>({5,5}) : TOptional<FIntPoint>{});
-        TestTrue(TEXT("All eight card types complete successfully under Confusion"),R.IsAccepted());
+        TestTrue(TEXT("All current card types complete successfully under Confusion"),R.IsAccepted());
         TestEqual(TEXT("Old duration consumed; only recast refreshes"),CardState.ConfusionActionsRemaining,
             Definition.Id==ECardId::Confusion ? 2 : 1);
         TestEqual(TEXT("Card action completes once"),CardState.CompletedActions,uint64(1));
@@ -268,10 +268,10 @@ bool FBasicsLock::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPool3,"Gomokards.Phase3A.PoolAndDeterminism",Flags)
 bool FPool3::RunTest(const FString& Parameters)
 {
-    const TArray<ECardId> Expected={ECardId::Restock,ECardId::SwapHands,ECardId::Steal,ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics};
+    const TArray<ECardId> Expected={ECardId::Restock,ECardId::SwapHands,ECardId::Steal,ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost};
     TArray<ECardId> Actual;
     for (const auto& Def : GetPlayableCards()) { Actual.Add(Def.Id); }
-    TestTrue(TEXT("Pool exactly the eight approved IDs, with no duplicate entries"),Actual==Expected);
+    TestTrue(TEXT("Pool exactly the nine approved IDs, with no duplicate entries"),Actual==Expected);
     TArray<ECardId> Seen;
     for (int32 Seed=0; Seed<128; ++Seed)
     {
@@ -280,11 +280,11 @@ bool FPool3::RunTest(const FString& Parameters)
         Play3(A,ECardId::Restock); Play3(B,ECardId::Restock);
         TestTrue(TEXT("Expanded pool preserves seeded equality"),A==B);
         FRandomStream ExpectedRandom(Seed);
-        const ECardId First=Expected[ExpectedRandom.RandRange(0,7)], Second=Expected[ExpectedRandom.RandRange(0,7)];
+        const ECardId First=Expected[ExpectedRandom.RandRange(0,8)], Second=Expected[ExpectedRandom.RandRange(0,8)];
         TestTrue(TEXT("Two uniform-with-replacement choices"),A.Players[0].Hand==TArray<ECardId>{First,Second});
         for (ECardId Card : A.Players[0].Hand) { TestTrue(TEXT("No unsupported draw"),Expected.Contains(Card)); Seen.AddUnique(Card); }
     }
-    TestEqual(TEXT("All eight generated in sample"),Seen.Num(),8);
+    TestEqual(TEXT("All nine generated in sample"),Seen.Num(),9);
     return true;
 }
 

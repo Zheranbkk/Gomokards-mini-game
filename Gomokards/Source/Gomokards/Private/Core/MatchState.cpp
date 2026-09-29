@@ -44,7 +44,8 @@ bool FMatchState::operator==(const FMatchState& Other) const
     return Board == Other.Board && Players == Other.Players
         && CurrentPlayerIndex == Other.CurrentPlayerIndex && CompletedActions == Other.CompletedActions
         && Result == Other.Result && ConfusionActionsRemaining == Other.ConfusionActionsRemaining
-        && bCardsDisabled == Other.bCardsDisabled && Random.GetInitialSeed() == Other.Random.GetInitialSeed()
+        && bCardsDisabled == Other.bCardsDisabled && GhostPhase == Other.GhostPhase
+        && GhostPlacementsCompleted == Other.GhostPlacementsCompleted && Random.GetInitialSeed() == Other.Random.GetInitialSeed()
         && Random.GetCurrentSeed() == Other.Random.GetCurrentSeed();
 }
 int32 SingleOpponentIndex(const FMatchState& State, int32 PlayerIndex)

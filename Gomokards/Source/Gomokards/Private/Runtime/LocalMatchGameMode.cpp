@@ -2,6 +2,7 @@
 #include "Runtime/LocalMatchPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/Guid.h"
+#include "HAL/PlatformTime.h"
 
 ALocalMatchGameMode::ALocalMatchGameMode()
 {
@@ -24,12 +25,56 @@ void ALocalMatchGameMode::NewMatch()
 }
 void ALocalMatchGameMode::StartWithSeed(int32 Seed)
 {
+    CancelGhostPreparation();
     Match.Reset(Seed);
     OnMatchChanged.Broadcast();
 }
 Gomokards::FActionResult ALocalMatchGameMode::Submit(const Gomokards::FActionRequest& Request)
 {
     const auto Result = Gomokards::ResolveAction(Match, Request);
-    if (Result.IsAccepted()) { OnMatchChanged.Broadcast(); }
+    if (Result.IsAccepted())
+    {
+        if (Match.GhostPhase == Gomokards::EGhostPhase::Preparation) { ScheduleGhostPreparation(); }
+        OnMatchChanged.Broadcast();
+    }
     return Result;
+}
+
+void ALocalMatchGameMode::ScheduleGhostPreparation()
+{
+    CancelGhostPreparation();
+    GhostDeadline = FPlatformTime::Seconds() + 5.0;
+    const uint64 Generation = GhostTimerGeneration;
+    // Core ticker + monotonic deadline: five real seconds, unaffected by world time dilation/pause.
+    GhostTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,
+        [this, Generation](float) { return PollGhostPreparation(FPlatformTime::Seconds(), Generation); }));
+}
+void ALocalMatchGameMode::CancelGhostPreparation()
+{
+    FTSTicker::RemoveTicker(GhostTicker);
+    GhostTicker.Reset();
+    GhostDeadline = 0;
+    ++GhostTimerGeneration;
+}
+bool ALocalMatchGameMode::PollGhostPreparation(double Now, uint64 Generation)
+{
+    if (Generation != GhostTimerGeneration) { return false; }
+    if (Now < GhostDeadline) { return true; }
+    CancelGhostPreparation();
+    if (Gomokards::BeginGhostHidden(Match)) { OnMatchChanged.Broadcast(); }
+    return false;
+}
+double ALocalMatchGameMode::GhostPreparationSecondsRemaining() const
+{
+    return Match.GhostPhase == Gomokards::EGhostPhase::Preparation ? FMath::Max(0.0, GhostDeadline-FPlatformTime::Seconds()) : 0.0;
+}
+void ALocalMatchGameMode::EndPlay(const EEndPlayReason::Type Reason)
+{
+    CancelGhostPreparation();
+    Super::EndPlay(Reason);
+}
+void ALocalMatchGameMode::BeginDestroy()
+{
+    CancelGhostPreparation();
+    Super::BeginDestroy();
 }

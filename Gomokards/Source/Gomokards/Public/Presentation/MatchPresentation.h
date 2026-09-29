@@ -28,6 +28,8 @@ struct GOMOKARDS_API FTargetSelection
     FActionRequest BoardRequest(const FMatchState& State, FIntPoint Target) const;
 };
 
+GOMOKARDS_API FLinearColor StoneDisplayColor(const FMatchState& State, EStone Stone);
+GOMOKARDS_API FString GhostLabel(const FMatchState& State, double PreparationSeconds);
 GOMOKARDS_API FString CardLabel(ECardId Card);
 GOMOKARDS_API FString StoneLabel(EStone Stone);
 GOMOKARDS_API FString EffectLabel(const FMatchState& State);

@@ -75,9 +75,22 @@ bool HasSuccessfulBlock(const FBoard& Board, FIntPoint Origin, EStone PlacedSton
     return false;
 }
 
+bool BeginGhostHidden(FMatchState& State)
+{
+    if (State.Result.Status != EMatchStatus::InProgress || State.GhostPhase != EGhostPhase::Preparation) { return false; }
+    State.GhostPhase = EGhostPhase::Hidden;
+    State.GhostPlacementsCompleted = 0;
+    return true;
+}
+bool CanPlayCards(const FMatchState& State)
+{
+    return State.Result.Status == EMatchStatus::InProgress && !State.bCardsDisabled && State.GhostPhase == EGhostPhase::None;
+}
+
 EActionError ValidateAction(const FMatchState& State, const FActionRequest& Request)
 {
     if (State.Result.Status != EMatchStatus::InProgress) { return EActionError::MatchStopped; }
+    if (State.GhostPhase == EGhostPhase::Preparation) { return EActionError::GhostPreparation; }
     if (SingleOpponentIndex(State, State.CurrentPlayerIndex) == INDEX_NONE
         || State.Players[0].Id == State.Players[1].Id
         || OppositeStone(State.Players[0].AssignedStone) == EStone::Empty
@@ -95,6 +108,7 @@ EActionError ValidateAction(const FMatchState& State, const FActionRequest& Requ
     case EActionType::PlayCard:
     {
         if (State.bCardsDisabled) { return EActionError::CardsDisabled; }
+        if (State.GhostPhase == EGhostPhase::Hidden) { return EActionError::GhostCardsRestricted; }
         const auto* Definition = FindCardDefinition(Request.Card);
         if (!Definition) { return EActionError::UnsupportedCard; }
         if (!Actor.Hand.Contains(Request.Card)) { return EActionError::CardNotOwned; }
@@ -120,7 +134,7 @@ static bool HasLegalAction(const FMatchState& State)
     {
         if (Cell.Stone == EStone::Empty && !Cell.bForbidden) { return true; }
     }
-    if (State.bCardsDisabled) { return false; }
+    if (!CanPlayCards(State)) { return false; }
     for (ECardId Card : State.Players[State.CurrentPlayerIndex].Hand)
     {
         // All current cards have a legal target/effect even on a full board, including repeat Barriers.
@@ -140,7 +154,7 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
     {
         const EStone PlacedStone = EffectivePlacementStone(Actor, State.ConfusionActionsRemaining > 0);
         Candidate.Board.At(Request.Coordinate).Stone = PlacedStone;
-        if (HasWinningLine(Candidate.Board, Request.Coordinate, PlacedStone))
+        if (State.GhostPhase != EGhostPhase::Hidden && HasWinningLine(Candidate.Board, Request.Coordinate, PlacedStone))
         { Candidate.Result = {EMatchStatus::Won, PlacedStone, EDecisionReason::None}; }
         Result.bBlockingReward = HasSuccessfulBlock(Candidate.Board, Request.Coordinate, PlacedStone);
         if (Result.bBlockingReward) { Actor.Hand.Add(DrawCard(Candidate.Random)); }
@@ -160,11 +174,21 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
         if (Request.Card == ECardId::Polarity)
         { Candidate.Result = EvaluateBoardResult(Candidate.Board); }
     }
+    if (Request.Type == EActionType::PlaceStone && State.GhostPhase == EGhostPhase::Hidden)
+    {
+        ++Candidate.GhostPlacementsCompleted;
+        if (Candidate.GhostPlacementsCompleted == FMatchState::GhostPlacementLimit)
+        {
+            Candidate.GhostPhase = EGhostPhase::None;
+            Candidate.GhostPlacementsCompleted = 0;
+            Candidate.Result = EvaluateBoardResult(Candidate.Board);
+        }
+    }
     ++Candidate.CompletedActions;
     if (Candidate.Result.Status == EMatchStatus::InProgress)
     {
         Candidate.CurrentPlayerIndex = SingleOpponentIndex(Candidate, ActorIndex);
-        if (!HasLegalAction(Candidate))
+        if (Candidate.GhostPhase != EGhostPhase::Preparation && !HasLegalAction(Candidate))
         {
             // Explicitly isolate the unresolved rule; never invent a draw/pass/winner.
             Candidate.Result = {EMatchStatus::AwaitingRuleDecision, EStone::Empty, EDecisionReason::NoLegalAction};

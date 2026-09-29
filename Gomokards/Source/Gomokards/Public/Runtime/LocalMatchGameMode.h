@@ -2,6 +2,7 @@
 
 #include "GameFramework/GameModeBase.h"
 #include "Core/MatchRules.h"
+#include "Containers/Ticker.h"
 #include "LocalMatchGameMode.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FLocalMatchChanged);
@@ -18,6 +19,16 @@ public:
     void NewMatch();
     void StartWithSeed(int32 Seed); // Explicit reproducible session; never changes rules RNG policy.
     FLocalMatchChanged OnMatchChanged;
+    double GhostPreparationSecondsRemaining() const;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+    virtual void BeginDestroy() override;
 private:
     Gomokards::FMatchState Match;
+    void ScheduleGhostPreparation();
+    void CancelGhostPreparation();
+    bool PollGhostPreparation(double Now, uint64 Generation);
+    FTSTicker::FDelegateHandle GhostTicker;
+    double GhostDeadline = 0;
+    uint64 GhostTimerGeneration = 0;
+    friend class FGhostRuntimeTest; // Deterministic runtime timer coverage; no public state injection API.
 };

@@ -48,7 +48,7 @@ public:
             else if (Cell.Stone != EStone::Empty)
             {
                 FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), &StoneBrush,
-                    ESlateDrawEffect::None, Cell.Stone == EStone::Black ? FLinearColor(.015f,.015f,.015f) : FLinearColor(.96f,.96f,.96f));
+                    ESlateDrawEffect::None, StoneDisplayColor(Pinned->GetMatch(),Cell.Stone));
             }
         }
         const auto DrawBarrier = [&](FIntPoint Anchor, FLinearColor Color)
@@ -79,9 +79,10 @@ public:
             const auto& Actor = Match.Players[Match.CurrentPlayerIndex];
             if (ValidateAction(Match,FActionRequest::Place(Actor.Id,Target.GetValue())) == EActionError::None)
             {
-                const bool bBlack = EffectivePlacementStone(Actor,Match.ConfusionActionsRemaining>0) == EStone::Black;
+                FLinearColor Preview = StoneDisplayColor(Match,EffectivePlacementStone(Actor,Match.ConfusionActionsRemaining>0));
+                Preview.A = .35f;
                 FSlateDrawElement::MakeBox(Out, Layer+5, G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
-                    &StoneBrush, ESlateDrawEffect::None, bBlack ? FLinearColor(0,0,0,.35f) : FLinearColor(1,1,1,.35f));
+                    &StoneBrush, ESlateDrawEffect::None, Preview);
             }
         }
         return Layer+5;
@@ -118,7 +119,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(ResultLabel(GetMatch()));}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Font(FCoreStyle::GetDefaultFontStyle("Bold",16))]
             +SVerticalBox::Slot().AutoHeight()
             [SNew(SHorizontalBox)
-                +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent)
+                +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent).IsEnabled_Lambda([this]{return GetMatch().GhostPhase != EGhostPhase::Preparation;})
                     [SAssignNew(BoardView,SMatchBoard).View(SharedThis(this))]]
                 +SHorizontalBox::Slot().FillWidth(1).Padding(20,0,0,0)
                 [SNew(SVerticalBox)
@@ -128,6 +129,8 @@ void SLocalMatchView::Construct(const FArguments& Args)
                     [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(TargetingLabel(Selection.Card));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Text_Lambda([this]{return FText::FromString(EffectLabel(GetMatch()));})]
+                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
+                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.6f,.85f,1)).Text_Lambda([this]{return FText::FromString(GhostLabel(GetMatch(),Owner->GhostPreparationSecondsRemaining()));})]
                     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
                     +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Development view: both hands visible.\nRed X = forbidden point. Cyan cross = Barrier.\nNo hidden hand rule is implied.")))]
                 ]]
@@ -156,7 +159,7 @@ void SLocalMatchView::Refresh()
         {
             Hands->AddSlot().AutoHeight().Padding(0,2)
                 [SNew(SButton).Text(FText::FromString(CardLabel(Card)))
-                    .IsEnabled(Index==Match.CurrentPlayerIndex && Match.Result.Status==EMatchStatus::InProgress && !Match.bCardsDisabled)
+                    .IsEnabled(Index==Match.CurrentPlayerIndex && CanPlayCards(Match))
                     .OnClicked_Lambda([this, Id=Player.Id, Card]{return CardClick(Id,Card);})];
         }
     }
