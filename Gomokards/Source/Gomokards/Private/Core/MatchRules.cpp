@@ -152,13 +152,12 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
         { return {EActionError::UnsupportedCard, false}; }
     }
     // Only a successful resolution consumes the effect that was active on entry.
-    // A recast then replaces the old duration with two future actions; Basics clears it.
+    // A recast then replaces the old duration with two future actions. Basics uses this normal lifecycle.
     Candidate.ConfusionActionsRemaining = FMath::Max(0, State.ConfusionActionsRemaining-1);
     if (Request.Type == EActionType::PlayCard)
     {
         if (Request.Card == ECardId::Confusion) { Candidate.ConfusionActionsRemaining = 2; }
-        if (Request.Card == ECardId::BackToBasics) { Candidate.ConfusionActionsRemaining = 0; }
-        if (Request.Card == ECardId::Polarity || Request.Card == ECardId::BackToBasics)
+        if (Request.Card == ECardId::Polarity)
         { Candidate.Result = EvaluateBoardResult(Candidate.Board); }
     }
     ++Candidate.CompletedActions;

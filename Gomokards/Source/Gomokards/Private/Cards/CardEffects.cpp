@@ -47,9 +47,7 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         return true; // Common resolver owns the explicit old-duration / refresh ordering.
     case ECardId::BackToBasics:
         Candidate.bCardsDisabled = true;
-        Candidate.Board.Barriers.Empty();
-        for (FCell& Cell : Candidate.Board.Cells) { Cell.bForbidden = false; }
-        return true; // Stones and remaining hands are intentionally retained.
+        return true; // Only future card use is disabled; existing state/effects continue normally.
     default:
         return false;
     }

@@ -24,7 +24,10 @@ TStaticArray<FVector2D, 4> FBoardLayout::BarrierCross(FIntPoint Anchor)
 {
     const auto Corners = FBoard::RegionCorners(Anchor);
     const FVector2D A=Center(Corners[0]), B=Center(Corners[1]), C=Center(Corners[2]), D=Center(Corners[3]);
-    return {(A+C)*.5, (B+D)*.5, (A+B)*.5, (C+D)*.5};
+    // Visual overhang only: logical corners, anchor domain and blocked links are unchanged.
+    const float Overhang = CellSize * .125f;
+    return {(A+C)*.5-FVector2D(Overhang,0), (B+D)*.5+FVector2D(Overhang,0),
+        (A+B)*.5-FVector2D(0,Overhang), (C+D)*.5+FVector2D(0,Overhang)};
 }
 bool FTargetSelection::Toggle(const FMatchState& State, ECardId Selected)
 {
@@ -59,11 +62,12 @@ FString CardLabel(ECardId Card)
 FString StoneLabel(EStone Stone) { return Stone == EStone::Black ? TEXT("Black") : Stone == EStone::White ? TEXT("White") : TEXT("None"); }
 FString EffectLabel(const FMatchState& State)
 {
-    if (State.bCardsDisabled) { return TEXT("BACK TO BASICS: cards disabled until restart. Remaining cards are inert."); }
+    const FString CardStatus = State.bCardsDisabled
+        ? TEXT("BACK TO BASICS: cards disabled until restart. Remaining cards are inert.") : TEXT("Cards enabled.");
     if (State.ConfusionActionsRemaining > 0)
-    { return FString::Printf(TEXT("CONFUSION: %d successful action(s) remain. Placement color: %s."),
+    { return CardStatus + FString::Printf(TEXT("\nCONFUSION: %d successful action(s) remain. Placement color: %s."),
         State.ConfusionActionsRemaining, *StoneLabel(EffectivePlacementStone(State.Players[State.CurrentPlayerIndex],true))); }
-    return TEXT("Cards enabled. No Confusion active.");
+    return CardStatus + TEXT(" No Confusion active.");
 }
 FString TargetingLabel(ECardId Selected)
 {

@@ -92,7 +92,7 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
     TestEqual(TEXT("Second affected action can be a card and expires"),S.ConfusionActionsRemaining,0);
     Place3(S,{2,2});
     TestTrue(TEXT("Following placement is assigned color again"),S.Board.At({2,2}).Stone==EStone::White);
-    // Every successful card type consumes old duration, with explicit refresh/clear exceptions.
+    // Every successful card type consumes old duration; only Confusion itself refreshes it.
     for (const auto& Definition : GetPlayableCards())
     {
         FMatchState CardState(7);
@@ -100,8 +100,8 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
         CardState.Players[0].Hand={Definition.Id};
         const auto R=Play3(CardState,Definition.Id,Definition.RequiresTarget() ? TOptional<FIntPoint>({5,5}) : TOptional<FIntPoint>{});
         TestTrue(TEXT("All eight card types complete successfully under Confusion"),R.IsAccepted());
-        TestEqual(TEXT("Old duration consumed then recast refreshed / Basics cleared"),CardState.ConfusionActionsRemaining,
-            Definition.Id==ECardId::Confusion ? 2 : Definition.Id==ECardId::BackToBasics ? 0 : 1);
+        TestEqual(TEXT("Old duration consumed; only recast refreshes"),CardState.ConfusionActionsRemaining,
+            Definition.Id==ECardId::Confusion ? 2 : 1);
         TestEqual(TEXT("Card action completes once"),CardState.CompletedActions,uint64(1));
     }
     FMatchState Recast;
@@ -190,48 +190,71 @@ bool FBarrierWins::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicsCleanup,"Gomokards.Phase3A.BackToBasics",Flags)
-bool FBasicsCleanup::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicsLock,"Gomokards.Phase3A.BackToBasics",Flags)
+bool FBasicsLock::RunTest(const FString& Parameters)
 {
     FMatchState S(65);
-    S.Players[0].Hand={ECardId::TacticalNuke,ECardId::Confusion,ECardId::BackToBasics,ECardId::Restock};
-    S.Players[1].Hand={ECardId::Polarity,ECardId::Barrier,ECardId::Steal};
+    S.Players[0].Hand={ECardId::TacticalNuke,ECardId::Barrier,ECardId::BackToBasics,ECardId::Restock};
+    S.Players[1].Hand={ECardId::Polarity,ECardId::Confusion,ECardId::Steal};
     S.Board.At({1,1}).Stone=EStone::Black; S.Board.At({5,5}).Stone=EStone::White;
     Play3(S,ECardId::TacticalNuke,FIntPoint(1,1));
     Play3(S,ECardId::Polarity,FIntPoint(5,5));
-    Play3(S,ECardId::Confusion);
     Play3(S,ECardId::Barrier,FIntPoint(8,8));
+    Play3(S,ECardId::Confusion);
     S.Board.Barriers.Add({10,10}); S.Board.At({18,18}).bForbidden=true;
-    TestEqual(TEXT("Cleanup starts with live Confusion"),S.ConfusionActionsRemaining,1);
+    TestEqual(TEXT("Basics starts with two active Confusion actions"),S.ConfusionActionsRemaining,2);
     const FBoard Before=S.Board;
     const int32 Seed=S.Random.GetCurrentSeed();
     const auto R=Play3(S,ECardId::BackToBasics);
     TestTrue(TEXT("Basics succeeds without reward"),R.IsAccepted() && !R.bBlockingReward);
-    TestTrue(TEXT("All continuing card effects cleared"),S.bCardsDisabled && S.ConfusionActionsRemaining==0 && S.Board.Barriers.IsEmpty());
-    for (int32 I=0; I<FBoard::Size*FBoard::Size; ++I)
-    { TestTrue(TEXT("Every flag cleared; every committed stone retained"),!S.Board.Cells[I].bForbidden && S.Board.Cells[I].Stone==Before.Cells[I].Stone); }
-    TestTrue(TEXT("Actual Nuke removal and Polarity flip not undone"),S.Board.At({1,1}).Stone==EStone::Empty && S.Board.At({5,5}).Stone==EStone::Black);
-    TestTrue(TEXT("Unused hands remain inert; Basics consumed"),S.Players[0].Hand==TArray<ECardId>{ECardId::Restock} && S.Players[1].Hand==TArray<ECardId>{ECardId::Steal});
+    TestTrue(TEXT("Lock enabled; all board cells, flags and barriers preserved"),S.bCardsDisabled && S.Board==Before);
+    TestEqual(TEXT("Basics naturally consumes one old Confusion action"),S.ConfusionActionsRemaining,1);
+    TestTrue(TEXT("Actual Nuke removal and Polarity flip not undone"),S.Board.At({1,1})==FCell{EStone::Empty,true} && S.Board.At({5,5}).Stone==EStone::Black);
+    TestTrue(TEXT("Unused hands retained; only Basics consumed"),S.Players[0].Hand==TArray<ECardId>{ECardId::Restock} && S.Players[1].Hand==TArray<ECardId>{ECardId::Steal});
     TestTrue(TEXT("Exactly one completion/transfer for Basics"),S.CompletedActions==5 && S.CurrentPlayerIndex==1);
-    TestEqual(TEXT("Cleanup has no RNG"),S.Random.GetCurrentSeed(),Seed);
+    TestEqual(TEXT("Basics has no RNG"),S.Random.GetCurrentSeed(),Seed);
     for (const auto& Def : GetPlayableCards())
     { Reject3(*this,S,FActionRequest::Play(Current3(S),Def.Id),EActionError::CardsDisabled); }
-    TestTrue(TEXT("Cleared forbidden point accepts assigned-color placement"),Place3(S,{1,1}).IsAccepted() && S.Board.At({1,1}).Stone==EStone::White);
-    S.Reset(65); S.Players[0].Hand.Add(ECardId::Restock);
+    Reject3(*this,S,FActionRequest::Place(Current3(S),{1,1}),EActionError::Forbidden);
+    Reject3(*this,S,FActionRequest::Place(Current3(S),{5,5}),EActionError::Occupied);
+    TestTrue(TEXT("Next valid placement is still confused after cards disabled"),Place3(S,{8,7}).IsAccepted() && S.Board.At({8,7}).Stone==EStone::Black);
+    TestEqual(TEXT("Remaining Confusion naturally expires on placement"),S.ConfusionActionsRemaining,0);
+    TestTrue(TEXT("Following placement uses normal assigned color"),Place3(S,{9,7}).IsAccepted() && S.Board.At({9,7}).Stone==EStone::Black);
+    S.Reset(65);
+    TestTrue(TEXT("Restart clears entire state and card lock"),S==FMatchState(65));
+    S.Players[0].Hand.Add(ECardId::Restock);
     TestTrue(TEXT("Restart restores card play"),Play3(S,ECardId::Restock).IsAccepted() && !S.bCardsDisabled);
-    // Removing barriers changes connectivity, so Basics must evaluate newly exposed wins too.
+
+    FMatchState Blocked;
+    for (int32 X=0; X<4; ++X) { Blocked.Board.At({X,9}).Stone=EStone::White; }
+    Blocked.Board.Barriers.Add({1,9});
+    Blocked.Players[0].Hand={ECardId::BackToBasics};
+    Play3(Blocked,ECardId::BackToBasics);
+    Place3(Blocked,{4,9});
+    TestTrue(TEXT("Persistent Barrier still prevents a five-stone win after Basics"),Blocked.Result.Status==EMatchStatus::InProgress && Blocked.Board.IsLinkBlocked({1,9},{2,9}) && !HasWinningLine(Blocked.Board,{4,9},EStone::White));
+
+    // Trusted fixtures intentionally contain pre-existing wins: detect any accidental global scan.
     for (bool Both : {false,true})
     {
-        FMatchState Restore;
+        FMatchState Existing;
         for (int32 X=0; X<5; ++X)
-        { Restore.Board.At({X,2}).Stone=EStone::Black; if (Both) { Restore.Board.At({X,5}).Stone=EStone::White; } }
-        Restore.Board.Barriers={{1,2},{1,5}};
-        Restore.Players[0].Hand={ECardId::BackToBasics};
-        TestTrue(TEXT("Barriers initially suppress wins"),EvaluateBoardResult(Restore.Board).Status==EMatchStatus::InProgress);
-        Play3(Restore,ECardId::BackToBasics);
-        TestTrue(TEXT("Restored connectivity adjudicated without scan-order winner"),Restore.Result.Status==(Both ? EMatchStatus::Draw : EMatchStatus::Won));
-        TestTrue(TEXT("No transfer on cleanup terminal result"),Restore.CurrentPlayerIndex==0 && Restore.CompletedActions==1);
+        { Existing.Board.At({X,2}).Stone=EStone::Black; if (Both) { Existing.Board.At({X,5}).Stone=EStone::White; } }
+        Existing.Players[0].Hand={ECardId::BackToBasics};
+        TestTrue(TEXT("Fixture would produce a global winner/draw"),EvaluateBoardResult(Existing.Board).Status==(Both ? EMatchStatus::Draw : EMatchStatus::Won));
+        const FBoard ExistingBoard=Existing.Board;
+        Play3(Existing,ECardId::BackToBasics);
+        TestTrue(TEXT("Basics never triggers a global winner or Draw scan"),Existing.Result.Status==EMatchStatus::InProgress && Existing.Board==ExistingBoard && Existing.CurrentPlayerIndex==1 && Existing.CompletedActions==1);
     }
+
+    FMatchState Reward(17);
+    Reward.Players[0].Hand={ECardId::BackToBasics};
+    Reward.Board.At({6,5}).Stone=EStone::Black; Reward.Board.At({7,5}).Stone=EStone::White;
+    Reward.Board.Barriers.Add({5,5});
+    Play3(Reward,ECardId::BackToBasics);
+    TestTrue(TEXT("Future block still rewards exactly once despite card lock"),Place3(Reward,{5,5}).bBlockingReward && Reward.Players[1].Hand.Num()==1 && Reward.bCardsDisabled);
+    Place3(Reward,{12,12});
+    Reject3(*this,Reward,FActionRequest::Play(Current3(Reward),Reward.Players[1].Hand[0]),EActionError::CardsDisabled);
+
     // Inert cards must not masquerade as legal actions on a full non-winning board.
     FMatchState Full;
     for (int32 Y=0; Y<19; ++Y) for (int32 X=0; X<19; ++X)
@@ -275,6 +298,13 @@ bool FTargetDomains3::RunTest(const FString& Parameters)
         const FVector2D Center=(Cross[0]+Cross[1])*.5;
         TestTrue(TEXT("Every rendered cell center hits its authoritative anchor"),FBoardLayout::TargetAt(Center,ECardId::Barrier).GetValue()==Anchor);
         TestTrue(TEXT("Cross endpoints agree on same center"),(Cross[2]+Cross[3])*.5==Center);
+        const FVector2D TopLeft=FBoardLayout::Center(Anchor);
+        const float Extension=FBoardLayout::CellSize*.125f;
+        TestTrue(TEXT("All four visual arms overhang their nearest grid line by 12.5 percent"),
+            FMath::IsNearlyEqual(TopLeft.X-Cross[0].X,double(Extension)) &&
+            FMath::IsNearlyEqual(Cross[1].X-(TopLeft.X+FBoardLayout::CellSize),double(Extension)) &&
+            FMath::IsNearlyEqual(TopLeft.Y-Cross[2].Y,double(Extension)) &&
+            FMath::IsNearlyEqual(Cross[3].Y-(TopLeft.Y+FBoardLayout::CellSize),double(Extension)));
         TestTrue(TEXT("Polarity anchor is the top-left intersection"),FBoardLayout::TargetAt(FBoardLayout::Center(Anchor),ECardId::Polarity).GetValue()==Anchor);
     }
     TestFalse(TEXT("Outside top-left cell border rejected"),FBoardLayout::TargetAt({14.99,30},ECardId::Barrier).IsSet());
@@ -298,7 +328,7 @@ bool FTargetDomains3::RunTest(const FString& Parameters)
     Labels.ConfusionActionsRemaining=2;
     TestTrue(TEXT("Confusion duration and effective color visible"),EffectLabel(Labels).Contains(TEXT("2 successful")) && EffectLabel(Labels).Contains(TEXT("White")));
     Labels.bCardsDisabled=true;
-    TestTrue(TEXT("Permanent card lock visible"),EffectLabel(Labels).Contains(TEXT("cards disabled")));
+    TestTrue(TEXT("Card lock and continuing Confusion both visible"),EffectLabel(Labels).Contains(TEXT("cards disabled")) && EffectLabel(Labels).Contains(TEXT("2 successful")));
     TestTrue(TEXT("Barrier instructions explicitly name center"),TargetingLabel(ECardId::Barrier).Contains(TEXT("CENTER")));
     return true;
 }
