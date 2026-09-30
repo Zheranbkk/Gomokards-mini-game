@@ -170,7 +170,7 @@ bool ApplyTetrisInput(FMatchState& State, ETetrisInput Input)
     else
     {
         const auto Delta=TetrisTranslation(Input);
-        if (Delta==FIntPoint::ZeroValue) { return false; }
+        if (Delta==FIntPoint::ZeroValue || Delta==TetrisGravity(Candidate.Edge)*-1) { return false; }
         Candidate.Origin+=Delta;
     }
     if (!TetrisFits(State.Board,TetrisOffsets(Candidate.Shape,Candidate.Rotation),Candidate.Origin)) { return false; }

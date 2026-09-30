@@ -13,6 +13,8 @@ constexpr EAutomationTestFlags TetrisFlags=EAutomationTestFlags_ApplicationConte
 const ETetrisEdge Edges[]={ETetrisEdge::Top,ETetrisEdge::Bottom,ETetrisEdge::Left,ETetrisEdge::Right};
 const ETetrisInput Moves[]={ETetrisInput::Up,ETetrisInput::Down,ETetrisInput::Left,ETetrisInput::Right};
 const FIntPoint Deltas[]={{0,-1},{0,1},{-1,0},{1,0}};
+// Explicit absolute keys rejected for Top, Bottom, Left and Right spawns respectively.
+const ETetrisInput OppositeInputs[]={ETetrisInput::Up,ETetrisInput::Down,ETetrisInput::Left,ETetrisInput::Right};
 FActionResult CastTetris(FMatchState& S)
 {
     S.Players[S.CurrentPlayerIndex].Hand.Add(ECardId::Tetris);
@@ -172,9 +174,16 @@ bool FTetrisMovement::RunTest(const FString&)
     for (int32 I=0; I<4; ++I)
     {
         auto S=TetrisFixture(Edge); const auto Before=S;
-        TestTrue(TEXT("Absolute translation independent of gravity"),ApplyTetrisInput(S,Moves[I]) && S.Tetris.Origin==Before.Tetris.Origin+Deltas[I]);
-        auto Expected=Before; Expected.Tetris.Origin+=Deltas[I];
-        TestTrue(TEXT("Movement changes only active origin"),S==Expected);
+        if (Moves[I]==OppositeInputs[static_cast<int32>(Edge)])
+        {
+            TestTrue(TEXT("Opposite-gravity key rejects even in open space; complete state unchanged"),!ApplyTetrisInput(S,Moves[I]) && S==Before);
+        }
+        else
+        {
+            TestTrue(TEXT("Gravity/perpendicular translation retains absolute direction"),ApplyTetrisInput(S,Moves[I]) && S.Tetris.Origin==Before.Tetris.Origin+Deltas[I]);
+            auto Expected=Before; Expected.Tetris.Origin+=Deltas[I];
+            TestTrue(TEXT("Allowed movement changes only active origin"),S==Expected);
+        }
     }
     for (bool Forbidden : {false,true})
     {
@@ -363,8 +372,17 @@ bool FTetrisRuntimeTest::RunTest(const FString&)
     for (int32 I=0; I<4; ++I)
     {
         Owner->Match=TetrisFixture(Edge); Owner->TetrisDeadline=100;
-        TestTrue(TEXT("Runtime absolute manual movement accepted"),Owner->SubmitTetrisAt(Moves[I],90));
-        TestEqual(TEXT("Only successful gravity-direction movement resets deadline"),Owner->TetrisDeadline,Deltas[I]==TetrisGravity(Edge) ? 90.5 : 100.0);
+        const auto BeforeInput=Owner->GetMatch(); const int32 BeforeInputNotifications=Notifications;
+        if (Moves[I]==OppositeInputs[static_cast<int32>(Edge)])
+        {
+            TestTrue(TEXT("Runtime opposite key rejects without state mutation or notification"),!Owner->SubmitTetrisAt(Moves[I],90) && Owner->GetMatch()==BeforeInput && Notifications==BeforeInputNotifications);
+            TestEqual(TEXT("Rejected opposite key preserves automatic gravity deadline"),Owner->TetrisDeadline,100.0);
+        }
+        else
+        {
+            TestTrue(TEXT("Runtime gravity/perpendicular movement accepted"),Owner->SubmitTetrisAt(Moves[I],90));
+            TestEqual(TEXT("Only successful gravity-direction movement resets deadline"),Owner->TetrisDeadline,Deltas[I]==TetrisGravity(Edge) ? 90.5 : 100.0);
+        }
     }
     Owner->Match=TetrisFixture(); Owner->Match.Tetris.Origin={8,17}; Owner->TetrisDeadline=100;
     const auto Blocked=Owner->GetMatch(); const int32 BeforeReject=Notifications;

@@ -359,7 +359,7 @@ Tetris, Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, networking 
 
 ## Unreal Migration Phase 3C Tetris
 
-Continues on `ue-migration` from accepted Phase 3B `ea5f4500449ffe1957b60d9e7227ea55592741e0`. The user personally completed and passed Ghost gameplay validation; its status above is updated. This phase implements **Tetris only**, using the newly specified four-edge rules. Earlier migration records remain historical. The user authorizes one implementation commit/push after agent validation, with **manual Tetris gameplay validation pending**.
+Continues on `ue-migration` from accepted Phase 3B `ea5f4500449ffe1957b60d9e7227ea55592741e0`. The user personally completed and passed Ghost gameplay validation; its status above is updated. This phase implements **Tetris only**, using the newly specified four-edge rules. Earlier migration records remain historical. The user authorizes one implementation commit/push after agent validation, before the manual pass. The user subsequently passed core Tetris functionality and identified the against-gravity movement issue corrected in Phase 3C.1; focused manual recheck is pending.
 
 ### Impact, ownership and action boundaries
 
@@ -383,9 +383,9 @@ Gravity maps **Top -> Down, Bottom -> Up, Left -> Right, Right -> Left**. Physic
 
 ### Controls, runtime timer and locking
 
-Arrows are absolute in all orientations: Up = -Y, Down = +Y, Left = -X, Right = +X. Legal movement with, across or against gravity is allowed. Space rotates clockwise within the shape's bounding rectangle with its top-left board origin fixed. There are no wall kicks or corrective translations. Invalid movement/rotation changes no state or RNG.
+Arrows are absolute in all orientations: Up = -Y, Down = +Y, Left = -X, Right = +X. Movement with gravity and perpendicular to it is allowed. Phase 3C.1 supersedes the original permission to move against gravity: **Arrow controls remain absolute, but the direction opposite the current gravity vector is disabled so players cannot cancel natural progression indefinitely.** Space rotates clockwise within the shape's bounding rectangle with its top-left board origin fixed. There are no wall kicks or corrective translations. Invalid movement/rotation changes no state or RNG.
 
-GameMode owns a weak core ticker, monotonic **0.5-second** deadline and callback generation, separate from Ghost. Core operations contain no wall-clock/frame time. A successful manual move exactly along gravity resets the next deadline to 0.5 seconds after that move. Lateral/opposite movement, rotation and rejected input do not. Only a blocked automatic gravity attempt locks the current footprint; blocked manual movement and lateral contact do not.
+GameMode owns a weak core ticker, monotonic **0.5-second** deadline and callback generation, separate from Ghost. Core operations contain no wall-clock/frame time. A successful manual move exactly along gravity resets the next deadline to 0.5 seconds after that move. Perpendicular movement, rotation and rejected input (including opposite-gravity input) do not. Only a blocked automatic gravity attempt locks the current footprint; blocked manual movement and lateral contact do not.
 
 Due callbacks advance one cell or lock. Steady deadlines advance by 0.5 seconds. After a long stall, missed intervals are not replayed as a burst; the next deadline is 0.5 seconds after the resumed callback. Delivery occurs on an engine tick, independent of world time dilation. Restart, mode exit, EndPlay and destruction cancel/invalidate the timer. Stale callbacks cannot affect a fresh match or newer Tetris activation. Automation supplies explicit timestamps without sleeping.
 
@@ -407,14 +407,14 @@ Unreal **5.8.2 Win64 Development Editor build succeeded**, with MSVC 14.44 and W
 
 `Private/Tests/TetrisTests.cpp` covers activation/effects; shapes/rotation; four-edge geometry/clearance/eligible sampling; crowded fallback/skips; absolute movement/collision; gravity/locks; six operators/full-sequence determinism; simultaneous connected clearing; final clear/evaluation/reset; pool/shape RNG/presentation key mapping; and runtime deadlines, soft drops, rejection, restart/stale callbacks, exit and teardown. All existing 29 groups remain and pass. Static review checks one authoritative state, action ordering, timer lifecycle, root keyboard routing and unchanged LocalMatch map/GameMode references. No agent gameplay or screenshot automation was performed. Generated binaries/caches/logs/reports remain ignored and excluded from the commit.
 
-**User-performed manual Tetris gameplay validation is pending**, distinct from the agent's compile, automation and static checks.
+**User-performed Phase 3C validation: core Tetris functionality passed.** Hands-on testing found the against-gravity movement issue, corrected in Phase 3C.1. **Focused manual recheck is pending**, distinct from the agent's compile, automation and static checks.
 
 ### Manual Gameplay Validation Checklist — Tetris only
 
 Use the existing launch procedure with `/Game/Maps/LocalMatch?Seed=9` and at least 1100x800. Zero-based opening `(0,0)`, `(1,0)`, `(2,0)`, `(18,18)` naturally gives Black Tetris; Black acts next. White's edge-block reward occurs first. This ten-card setup is tested through runtime requests. Previous pool-specific seeds are historical; current Black opening acquisitions include Ghost seed 6, Polarity seed 4, Confusion seed 7, Barrier seed 10 and Basics seed 3. Relaunch for a repeatable seed; Restart intentionally changes it.
 
 1. **Entry/input:** cast Tetris. One card/action is consumed; White controls the first Black block. Stones become squares, the active block is outlined, and the HUD identifies operator/edge/gravity. Ordinary placement/card clicks do nothing.
-2. **Edges/controls:** across several blocks and board layouts, check available-edge spawns and Top/Down, Bottom/Up, Left/Right, Right/Left inward travel. Arrows always move in their screen directions, including against gravity. Observe roughly one automatic step per 0.5 seconds. A successful manual inward step postpones the next step; lateral/opposite moves do not.
+2. **Edges/controls:** across several blocks and board layouts, check available-edge spawns and Top/Down, Bottom/Up, Left/Right, Right/Left inward travel. Arrows retain their screen directions, but the key opposite gravity is rejected (Phase 3C.1 correction). Observe roughly one automatic step per 0.5 seconds. A successful manual inward step postpones the next step; perpendicular moves and rejected opposite input do not.
 3. **Collision/rotation:** occupied stones and Nuke forbidden points reject overlapping movement; Barrier permits physical passage. Space rotates clockwise; obstructed/out-of-bounds rotation leaves the block unchanged. Blocked manual movement does not lock; the next blocked automatic step does. Nuke/Barrier marks remain visible.
 4. **Six blocks/effects:** verify six alternating opportunities, three per operator, controlling opposite assigned colors. Movement/rotation/locks do not advance ordinary action count/turn or remaining Confusion, and locks never earn cards. Crowded undeployable opportunities may skip immediately without a loss or extra ordinary action.
 5. **Clearing:** extend same-color horizontal/vertical/diagonal runs to 5+, including existing stones. Entire qualifying connected runs and intersecting unions disappear without collapse. A Barrier-split visual run remains when neither connected segment reaches five.
@@ -424,4 +424,16 @@ Use the existing launch procedure with `/Game/Maps/LocalMatch?Seed=9` and at lea
 
 Keep the fixed-size English development HUD, visible hands, small value state, explicit dispatch and full-board scans. Rotation has the documented fixed bounding-box origin and no kicks. Missed real-time deadlines do not cause catch-up bursts. Packaged-build validation, production UI/art/audio, score, hold, hard drop, next-piece preview, projection, animation, save/replay imports and generic mode/timer frameworks remain out of scope.
 
-Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, four-player rules and networking remain unsupported. Ordinary no-legal-action adjudication retains its existing explicit decision boundary. Work stops at Phase 3C with manual Tetris validation pending.
+Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, four-player rules and networking remain unsupported. Ordinary no-legal-action adjudication retains its existing explicit decision boundary. Phase 3C core functionality passed user testing; the focused Phase 3C.1 movement recheck remains pending.
+
+## Unreal Migration Phase 3C.1 Tetris Movement Correction
+
+Continues from `cb7340f570c73a5ce8ae8e43d3e383a793f03746`. The user supersedes Phase 3C's against-gravity permission after hands-on testing. `ApplyTetrisInput` now rejects translation equal to `-TetrisGravity(CurrentEdge)` before committing state: Top/Down rejects Up; Bottom/Up rejects Down; Left/Right rejects Left; Right/Left rejects Right. Absolute key mapping is unchanged.
+
+The rejection preserves the complete match state, RNG, rotation, ordinary actions, Confusion and runtime gravity deadline, and never locks. Gravity-direction soft drop still resets the deadline to 0.5 seconds; both perpendicular moves remain valid without resetting it. Only blocked automatic gravity locks. Spawn, collision, rotation, alternation, clearing, Barrier/Nuke behavior and the ten-card pool are unchanged. No networking, new card or movement-policy abstraction was added.
+
+The existing movement and runtime test groups now explicitly cover all four rejected keys and all twelve allowed orientation/direction combinations. Complete-state equality and unchanged runtime deadline/notifications are asserted on rejection. All prior groups are preserved.
+
+Agent validation: Unreal 5.8.2 Win64 Development Editor build succeeded. The complete Gomokards Automation suite exported **40 passed, 0 failed, 0 test warnings, 0 skipped, 0 in progress**, verified in `Saved/Automation/Phase3C1/index.json`. Final diff review confirms only the core guard, movement/runtime regression assertions and README changed; generated/cache files are excluded. User-reported core Tetris functionality passed; the identified movement issue is corrected here, with focused manual recheck pending. No agent gameplay is performed.
+
+Manual Gameplay Validation Checklist: for Top, Bottom, Left and Right spawns, verify respectively Up, Down, Left and Right do nothing; verify the gravity-direction key and both perpendicular keys still work when space exists. Gravity must continue normally after rejected input.
