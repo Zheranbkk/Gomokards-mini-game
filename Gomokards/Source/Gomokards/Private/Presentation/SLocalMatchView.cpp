@@ -1,5 +1,6 @@
 #include "Presentation/SLocalMatchView.h"
-#include "Runtime/LocalMatchGameMode.h"
+#include "Runtime/LocalMatchPlayerController.h"
+#include "Presentation/MatchPresentation.h"
 #include "Widgets/SLeafWidget.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBox.h"
@@ -23,7 +24,7 @@ public:
         int32 Layer, const FWidgetStyle&, bool) const override
     {
         const auto Pinned = View.Pin(); if (!Pinned) { return Layer; }
-        const FBoard& Board = Pinned->GetMatch().Board;
+        const auto& Board = Pinned->GetPublicView();
         const auto* White = FCoreStyle::Get().GetBrush("WhiteBrush");
         FSlateDrawElement::MakeBox(Out, Layer, G.ToPaintGeometry(), White, ESlateDrawEffect::None, FLinearColor(.72f,.52f,.27f));
         for (int32 I=0; I<FBoard::Size; ++I)
@@ -35,7 +36,7 @@ public:
             FSlateDrawElement::MakeLines(Out, Layer+1, G.ToPaintGeometry(), TArray<FVector2D>{{V,First},{V,Last}}, ESlateDrawEffect::None, FLinearColor(.15f,.12f,.08f), true);
         }
         static const FSlateRoundedBoxBrush StoneBrush(FLinearColor::White, 12.f);
-        for (int32 I=0; I<FBoard::Size*FBoard::Size; ++I)
+        for (int32 I=0; I<Board.Cells.Num(); ++I)
         {
             const auto& Cell = Board.Cells[I];
             const FVector2D Center = FBoardLayout::Center(FBoard::ToCoordinate(I));
@@ -45,20 +46,10 @@ public:
                 FSlateDrawElement::MakeLines(Out, Layer+3, G.ToPaintGeometry(), {Center-FVector2D(8),Center+FVector2D(8)}, ESlateDrawEffect::None, FLinearColor::White, true, 2);
                 FSlateDrawElement::MakeLines(Out, Layer+3, G.ToPaintGeometry(), {Center+FVector2D(-8,8),Center+FVector2D(8,-8)}, ESlateDrawEffect::None, FLinearColor::White, true, 2);
             }
-            else if (Cell.Stone != EStone::Empty)
+            else if (Cell.Stone != 0)
             {
-                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), Pinned->GetMatch().Tetris.bActive ? White : &StoneBrush,
-                    ESlateDrawEffect::None, StoneDisplayColor(Pinned->GetMatch(),Cell.Stone));
-            }
-        }
-        const auto& Tetris=Pinned->GetMatch().Tetris;
-        if (Tetris.bActive)
-        {
-            for (FIntPoint Offset : TetrisOffsets(Tetris.Shape,Tetris.Rotation))
-            {
-                const FVector2D Center=FBoardLayout::Center(Tetris.Origin+Offset);
-                FSlateDrawElement::MakeBox(Out,Layer+2,G.ToPaintGeometry(FVector2D(28),FSlateLayoutTransform(Center-FVector2D(14))),White,ESlateDrawEffect::None,FLinearColor(1,.65f,0));
-                FSlateDrawElement::MakeBox(Out,Layer+3,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(Center-FVector2D(12))),White,ESlateDrawEffect::None,StoneDisplayColor(Pinned->GetMatch(),Tetris.Stone));
+                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), &StoneBrush,
+                    ESlateDrawEffect::None, Cell.Stone==1 ? FLinearColor(.04f,.04f,.05f) : FLinearColor(.94f,.94f,.9f));
             }
         }
         const auto DrawBarrier = [&](FIntPoint Anchor, FLinearColor Color)
@@ -68,32 +59,12 @@ public:
             FSlateDrawElement::MakeLines(Out, Layer+4, G.ToPaintGeometry(), TArray<FVector2D>{Ends[2],Ends[3]}, ESlateDrawEffect::None, Color, true, 3);
         };
         for (FIntPoint Anchor : Board.Barriers) { DrawBarrier(Anchor, FLinearColor(0,.8f,1)); }
-        const auto Target = Hover.IsSet() ? FBoardLayout::TargetAt(Hover.GetValue(),Pinned->SelectedCard()) : TOptional<FIntPoint>{};
-        if (Pinned->IsTargeting() && Target.IsSet())
+        const auto Target=Hover.IsSet() ? FBoardLayout::ToCoordinate(Hover.GetValue()) : TOptional<FIntPoint>{};
+        if (Target.IsSet() && Pinned->CanPlace(Target.GetValue()))
         {
-            const FIntPoint Anchor = Target.GetValue();
-            if (Pinned->SelectedCard() == ECardId::Barrier) { DrawBarrier(Anchor,FLinearColor::Yellow); }
-            else
-            {
-                const FVector2D First = FBoardLayout::Center(Anchor)-FVector2D(14);
-                const FIntPoint LastPoint = Pinned->SelectedCard() == ECardId::Polarity ? FBoard::RegionCorners(Anchor)[3] : Anchor;
-                const FVector2D Last = FBoardLayout::Center(LastPoint)+FVector2D(14);
-                FSlateDrawElement::MakeLines(Out, Layer+5, G.ToPaintGeometry(),
-                    TArray<FVector2D>{First,{Last.X,First.Y},Last,{First.X,Last.Y},First},
-                    ESlateDrawEffect::None, FLinearColor::Yellow, true, 2);
-            }
-        }
-        else if (!Pinned->IsTargeting() && Target.IsSet())
-        {
-            const auto& Match = Pinned->GetMatch();
-            const auto& Actor = Match.Players[Match.CurrentPlayerIndex];
-            if (ValidateAction(Match,FActionRequest::Place(Actor.Id,Target.GetValue())) == EActionError::None)
-            {
-                FLinearColor Preview = StoneDisplayColor(Match,EffectivePlacementStone(Actor,Match.ConfusionActionsRemaining>0));
-                Preview.A = .35f;
-                FSlateDrawElement::MakeBox(Out, Layer+5, G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
-                    &StoneBrush, ESlateDrawEffect::None, Preview);
-            }
+            FLinearColor Preview=Pinned->PreviewStone()==1 ? FLinearColor(.04f,.04f,.05f,.35f) : FLinearColor(.94f,.94f,.9f,.35f);
+            FSlateDrawElement::MakeBox(Out,Layer+5,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
+                &StoneBrush,ESlateDrawEffect::None,Preview);
         }
         return Layer+5;
     }
@@ -103,10 +74,9 @@ public:
     virtual FReply OnMouseButtonDown(const FGeometry& G, const FPointerEvent& E) override
     {
         const auto Pinned = View.Pin(); if (!Pinned) { return FReply::Unhandled(); }
-        if (E.GetEffectingButton() == EKeys::RightMouseButton) { Pinned->Cancel(); }
-        else if (E.GetEffectingButton() == EKeys::LeftMouseButton)
+        if (E.GetEffectingButton() == EKeys::LeftMouseButton)
         {
-            const auto Coordinate = FBoardLayout::TargetAt(G.AbsoluteToLocal(E.GetScreenSpacePosition()),Pinned->SelectedCard());
+            const auto Coordinate = FBoardLayout::ToCoordinate(G.AbsoluteToLocal(E.GetScreenSpacePosition()));
             Pinned->BoardClick(Coordinate.Get(FIntPoint(-1,-1)));
         }
         return FReply::Handled().SetUserFocus(Pinned.ToSharedRef());
@@ -118,101 +88,64 @@ private:
 
 void SLocalMatchView::Construct(const FArguments& Args)
 {
-    Owner = Args._Owner;
-    Feedback = TEXT("Place a stone or play a card. Cards are earned only by successful blocking.");
+    Owner=Args._Owner;
     ChildSlot
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS  |  local hot-seat"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4A"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
-            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(ResultLabel(GetMatch()));}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Font(FCoreStyle::GetDefaultFontStyle("Bold",16))]
+            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
             +SVerticalBox::Slot().AutoHeight()
             [SNew(SHorizontalBox)
-                +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent).IsEnabled_Lambda([this]{return GetMatch().GhostPhase != EGhostPhase::Preparation && !GetMatch().Tetris.bActive;})
+                +SHorizontalBox::Slot().AutoWidth()
+                [SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent)
                     [SAssignNew(BoardView,SMatchBoard).View(SharedThis(this))]]
                 +SHorizontalBox::Slot().FillWidth(1).Padding(20,0,0,0)
                 [SNew(SVerticalBox)
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(SButton).Text(FText::FromString(TEXT("New Match / Restart"))).OnClicked_Lambda([this]{Owner->NewMatch(); Feedback=TEXT("New match. Black starts; both hands are empty."); return FReply::Handled().SetUserFocus(SharedThis(this));})]
+                    [SNew(SButton).Text(FText::FromString(TEXT("Development server restart")))
+                        .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
+                        .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(GetMatch().Tetris.bActive ? TetrisLabel(GetMatch()) : TargetingLabel(Selection.Card));})]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Card play networking arrives in Phase 4B.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Text_Lambda([this]{return FText::FromString(EffectLabel(GetMatch()));})]
-                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.6f,.85f,1)).Text_Lambda([this]{return FText::FromString(GhostLabel(GetMatch(),Owner->GhostPreparationSecondsRemaining()));})]
+                    [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
                     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
-                    +SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Development view: both hands visible.\nRed X = forbidden point. Cyan cross = Barrier.\nNo hidden hand rule is implied.")))]
                 ]]
             +SVerticalBox::Slot().AutoHeight().Padding(0,12,0,0)
-            [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Feedback);})]
+            [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Owner->GetFeedback());})]
         ]
     ];
-    ChangedHandle = Owner->OnMatchChanged.AddSP(this, &SLocalMatchView::Refresh);
+    ChangedHandle=Owner->OnPresentationChanged.AddSP(this,&SLocalMatchView::Refresh);
     Refresh();
 }
-SLocalMatchView::~SLocalMatchView() { if (Owner.IsValid()) { Owner->OnMatchChanged.Remove(ChangedHandle); } }
-const FMatchState& SLocalMatchView::GetMatch() const { return Owner->GetMatch(); }
+SLocalMatchView::~SLocalMatchView()
+{ if (Owner.IsValid()) { Owner->OnPresentationChanged.Remove(ChangedHandle); } }
+const FMatchPublicView& SLocalMatchView::GetPublicView() const { return Owner->GetPublicView(); }
+bool SLocalMatchView::CanPlace(FIntPoint Point) const { return Owner->CanPlace(Point); }
+uint8 SLocalMatchView::PreviewStone() const
+{
+    const uint8 Stone=Owner->GetPrivateView().Stone;
+    return GetPublicView().ConfusionRemaining>0 ? (Stone==1 ? 2 : 1) : Stone;
+}
 void SLocalMatchView::Refresh()
 {
-    Selection.Clear();
     BoardView->Invalidate(EInvalidateWidgetReason::Paint);
     Hands->ClearChildren();
-    const auto& Match = GetMatch();
-    for (int32 Index=0; Index<Match.Players.Num(); ++Index)
+    const auto& Public=Owner->GetPublicView();
+    const auto& Private=Owner->GetPrivateView();
+    for (const auto& Seat : Public.Seats)
     {
-        const auto& Player = Match.Players[Index];
-        Hands->AddSlot().AutoHeight().Padding(0,10,0,5)
-            [SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("%s hand (%d)%s"), *StoneLabel(Player.AssignedStone), Player.Hand.Num(), Index==Match.CurrentPlayerIndex ? TEXT("  < active") : TEXT("")))).Font(FCoreStyle::GetDefaultFontStyle("Bold",14))];
-        if (Player.Hand.IsEmpty()) { Hands->AddSlot().AutoHeight()[SNew(STextBlock).Text(FText::FromString(TEXT("No cards")))]; }
-        for (ECardId Card : Player.Hand)
-        {
-            Hands->AddSlot().AutoHeight().Padding(0,2)
-                [SNew(SButton).Text(FText::FromString(CardLabel(Card)))
-                    .IsEnabled(Index==Match.CurrentPlayerIndex && CanPlayCards(Match))
-                    .OnClicked_Lambda([this, Id=Player.Id, Card]{return CardClick(Id,Card);})];
-        }
+        Hands->AddSlot().AutoHeight().Padding(0,8)
+            [SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("%s hand: %d%s"),*StoneLabel(static_cast<EStone>(Seat.Stone)),Seat.HandCount,
+                Seat.PlayerId==Private.PlayerId ? TEXT(" (you)") : TEXT(""))))];
+    }
+    // Only the owner-private projection can provide card IDs; there is no opponent-hand query.
+    for (uint8 Card : Private.Hand)
+    {
+        Hands->AddSlot().AutoHeight().Padding(0,2)
+            [SNew(SButton).IsEnabled(false).Text(FText::FromString(CardLabel(static_cast<ECardId>(Card))))];
     }
 }
-void SLocalMatchView::Submit(const FActionRequest& Request, const FString& ActionLabel)
-{
-    const auto Result = Owner->Submit(Request);
-    Feedback = Result.IsAccepted() ? ActionLabel + (Result.bBlockingReward ? TEXT(" Successful block: +1 card.") : TEXT("")) : RejectionLabel(Result.Error);
-}
-void SLocalMatchView::BoardClick(FIntPoint Coordinate)
-{
-    if (GetMatch().Result.Status != EMatchStatus::InProgress) { Feedback=RejectionLabel(EActionError::MatchStopped); return; }
-    const bool bTarget = Selection.IsActive();
-    const auto Request = Selection.BoardRequest(GetMatch(),Coordinate);
-    Submit(Request, FString::Printf(TEXT("%s at (%d, %d)."),bTarget ? *CardLabel(Request.Card) : TEXT("Stone placed"),Coordinate.X,Coordinate.Y));
-}
-FReply SLocalMatchView::CardClick(FPlayerId Player, ECardId Card)
-{
-    const auto* Definition = FindCardDefinition(Card);
-    if (Definition && Definition->RequiresTarget())
-    {
-        if (Selection.Toggle(GetMatch(),Card)) { BoardView->Invalidate(EInvalidateWidgetReason::Paint); Feedback=Selection.IsActive() ? CardLabel(Card)+TEXT(" selected. No action spent yet.") : TEXT("Targeting cancelled. Match unchanged."); }
-    }
-    else { Selection.Clear(); Submit(FActionRequest::Play(Player,Card),CardLabel(Card)+TEXT(" played.")); }
-    return FReply::Handled().SetUserFocus(SharedThis(this));
-}
-void SLocalMatchView::Cancel() { Selection.Clear(); BoardView->Invalidate(EInvalidateWidgetReason::Paint); Feedback=TEXT("Targeting cancelled. Match unchanged."); }
-FReply SLocalMatchView::OnKeyDown(const FGeometry& G, const FKeyEvent& E)
-{ if(E.GetKey()==EKeys::Escape){Cancel(); return FReply::Handled();} return SCompoundWidget::OnKeyDown(G,E); }
-FReply SLocalMatchView::OnPreviewKeyDown(const FGeometry& G, const FKeyEvent& E)
-{
-    // Tunnel before focused buttons/scroll widgets: arrows never navigate UI and Space never clicks Restart in this mode.
-    if (GetMatch().Tetris.bActive)
-    {
-        const auto Input=TetrisInputForKey(E.GetKey());
-        if (Input.IsSet())
-        {
-            const bool bAccepted=Owner->SubmitTetris(Input.GetValue());
-            Feedback=bAccepted ? TEXT("Tetris control accepted.") : TEXT("Tetris move/rotation blocked; unchanged.");
-            return FReply::Handled().SetUserFocus(SharedThis(this));
-        }
-    }
-    return SCompoundWidget::OnPreviewKeyDown(G,E);
-}
-FReply SLocalMatchView::OnMouseButtonDown(const FGeometry& G, const FPointerEvent& E)
-{ if(E.GetEffectingButton()==EKeys::RightMouseButton){Cancel();return FReply::Handled();} return SCompoundWidget::OnMouseButtonDown(G,E); }
+void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestPlace(Coordinate); }

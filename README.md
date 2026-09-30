@@ -439,9 +439,9 @@ Agent validation: Unreal 5.8.2 Win64 Development Editor build succeeded. The com
 User-performed Phase 3C.1 focused manual validation: **completed and passed** on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7`. The user confirmed all four opposite-gravity rejections and correct gravity/perpendicular movement. Retained completed Manual Gameplay Validation Checklist: for Top, Bottom, Left and Right spawns, verify respectively Up, Down, Left and Right do nothing; verify the gravity-direction key and both perpendicular keys still work when space exists. Gravity must continue normally after rejected input.
 
 
-## Phase 4A Multiplayer Architecture Impact Pass
+## Phase 4A Multiplayer Architecture Impact Pass (historical proposal)
 
-**PROPOSED / NOT YET IMPLEMENTED.** Reviewed against accepted `ue-migration` implementation `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7`. Phase 3C.1 focused manual validation passed. This pass changes README only: no networking code, dependencies, configuration or assets are added. Multiplayer has not been demonstrated. The following is the plan for a separately authorized Phase 4A implementation, followed by Phase 4B card/mode networking and later Phase 4C connection/session services.
+**Historical README-only proposal at `d2cfa1a447da726bdcb14e585e8570b1d2449020`; superseded by the Phase 4A implementation record below.** Reviewed against accepted `ue-migration` implementation `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7`. Phase 3C.1 focused manual validation passed. This pass changes README only: no networking code, dependencies, configuration or assets are added. Multiplayer has not been demonstrated. The following is the plan for a separately authorized Phase 4A implementation, followed by Phase 4B card/mode networking and later Phase 4C connection/session services.
 
 ### Current dependencies and exact breakpoints
 
@@ -500,7 +500,7 @@ A direct reflected/replicated `FMatchState` (option A) entangles core types with
 | Public mode extensions, Phase 4B | Ghost phase, placements remaining, display deadline and occupancy/redacted cells; Tetris active flag, block opportunity, operator gameplay ID, shape, origin, rotation, edge/derived gravity and true block color. Never expose future random draws. |
 | Owner-private PlayerController | Assigned gameplay ID, own ordered hand card IDs including duplicates, epoch/revision. Use owner-only replication conditions; only the corresponding client receives these fields. Own count derives from own array. Rebuild both owners' private views after Swap/Steal later; no public hand-content event. |
 | Server only | Full `FMatchState`, both authoritative hands, RNG seed/current stream, Ghost-hidden true colors, monotonic timer deadlines/generations, assignment map and development restart authorization. |
-| Unresolved public field | Opponent hand count: do not add it to public replication by inference from the debug HUD; see decision gate below. |
+| Resolved public field | Opponent hand count is always public; card identities/order remain owner-private. The implementation below follows the subsequent user decision. |
 
 During Ghost Hidden, merely painting replicated true colors gray is insufficient. Future public cell DTO must support occupied-but-color-hidden independently of core `EStone`; redact all hidden cell colors before transport and replace client presentation cache, then publish real colors on reveal. Previously visible information cannot be made unknown again; players may also infer colors from public turns/Confusion. Do not promise cryptographic secrecy against such inference. A listen-server operator can inspect server memory containing all secrets; owner-only replication protects remote delivery, not against a malicious host. Dedicated hosting improves that trust boundary without changing rules.
 
@@ -554,8 +554,70 @@ Phase 4A acceptance requires successful compilation/full regression, passing new
 
 ### Decision gate and accepted limitations
 
-**Product decision before Phase 4A implementation: is opponent hand count public in all phases, or hidden except explicitly authorized feedback?** Phase 2 explicitly says both-hand debugging establishes no permanent visibility rule. Phase 3B deliberately allows visible reward/hand-count changes during Ghost, but does not settle a universal multiplayer count policy or public card identities. Recommend public counts (never contents) consistently, which fits Ghost's information reward; require the user's choice before adding that public field. If counts remain private elsewhere, retain the explicit Ghost reward-information exception when Phase 4B is specified. Own-hand delivery is settled; it is not blocked conceptually by this choice.
+**Visibility decision resolved by the user before implementation:** opponent hand counts are always public, opponent hand contents always private. There are no Phase-specific count exceptions. The original decision gate is closed.
 
 Other items are implementation constraints, not reopened gameplay decisions: connection-order seats are a replaceable assignment policy; restart is a development admin operation; disconnect invalidates the session; no account authentication or hostile-host confidentiality is promised. A full-board Phase 4A test with earned cards may still have core-legal card actions that the network slice deliberately does not expose. Label that as the test slice's capability limit and stop/restart via runtime session status, without rewriting `NoLegalAction`, inventing Draw or changing card availability in the core. Existing no-legal-action product rules remain deferred. Main failure risks are leaked DTO fields, host shortcuts, trusting request IDs as identity, public/private arrival races, late intents crossing resets/blocks, and mixing clock domains; the ownership/projection/epoch/operator checks above address them without a framework.
 
-Unreal-native checks were grounded in the installed UE 5.8 `GameStateBase.cpp` clock implementation and gameplay framework headers, and Epic's [GameMode/GameState guidance](https://dev.epicgames.com/documentation/en-us/unreal-engine/game-mode-and-game-state-in-unreal-engine) and [replication execution-order documentation](https://dev.epicgames.com/documentation/zh-cn/unreal-engine/replicated-object-execution-order-in-unreal-engine). Those engine guarantees support the proposal; no networking implementation is present in this commit.
+Unreal-native checks were grounded in the installed UE 5.8 `GameStateBase.cpp` clock implementation and gameplay framework headers, and Epic's [GameMode/GameState guidance](https://dev.epicgames.com/documentation/en-us/unreal-engine/game-mode-and-game-state-in-unreal-engine) and [replication execution-order documentation](https://dev.epicgames.com/documentation/zh-cn/unreal-engine/replicated-object-execution-order-in-unreal-engine). Those engine guarantees support the proposal; no networking implementation was present in that architecture-only baseline commit.
+
+
+## Phase 4A — Two-player server-authoritative ordinary-placement slice
+
+**Implemented; automated validation passed; user manual PIE validation pending.** Based on architecture baseline `d2cfa1a447da726bdcb14e585e8570b1d2449020`. Phase 3C.1 manual acceptance on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7` remains accepted. This section supersedes the implementation/proposed wording and visibility gate in the historical impact pass above. It does not claim demonstrated PIE, LAN, Internet or dedicated-server deployment.
+
+### Implemented ownership and transport
+
+- `ALocalMatchGameMode` is the only authority for `FMatchState`, RNG, resolution and existing mode timers. It owns controller-to-gameplay-ID assignments, session state, epochs/revisions and development-admin grants. The pure Core and Cards code is unchanged and contains no new networking/reflection/presentation dependencies.
+- New `ALocalMatchGameState` contains a replicated public snapshot only, selected by the GameMode constructor. `MatchNetTypes.h/.cpp` defines reflected display/transport types and explicit server conversions; no replicated `FMatchState`, RNG, full player state or per-cell Actor exists.
+- Existing `ALocalMatchPlayerController` sends intents and owns Slate. Its private snapshot uses `COND_OwnerOnly` on an owner-relevant PlayerController. Default Unreal PlayerState remains connection metadata; no custom PlayerState, GameInstance service, online dependency, config, map or asset change was needed.
+
+| Projection | Actual fields / visibility |
+| --- | --- |
+| Public GameState | 361 Empty/Black/White + forbidden cells; Barrier anchors; two gameplay IDs, stone assignments, occupied flags and hand counts; current gameplay ID, completed actions; result, winning stone and decision reason; Basics flag and Confusion count; WaitingForPlayers/Playing/SessionEnded; epoch and revision. **Both hand counts are always public. No card IDs or RNG.** |
+| Owner-private controller | Own assigned gameplay ID/stone, own ordered card IDs (duplicates retained), server-granted development-admin availability, epoch and revision. **No opponent hand contents.** In standalone hot-seat only, the displayed private hand follows the currently operated player. |
+| Owner action acknowledgement | Epoch/revision, accepted flag, safe adapter/core rejection code and blocking-reward flag. No board patch or drawn card ID. |
+
+Card rewards still draw from the existing ten-card pool on the server. Both public counts update, while only the earning owner receives the drawn identity. Disabled hand entries explain: “Card play networking arrives in Phase 4B.” The server adapter also rejects card play in initialized network sessions; there is no card or mode RPC.
+
+### Identity, RPCs and session lifecycle
+
+`PostLogin` assigns the first free gameplay seat (initially ID 0/Black then ID 1/White). Server authorization reads this mapping; it does not equate host, controller index or Unreal PlayerId with Black. Automated fixtures reverse the connections so the development host is White and the remote-assigned Black starts.
+
+The owning controller exposes reliable `ServerPlaceStone(Epoch, ExpectedCompletedActions, X, Y)`. It has no client-supplied actor ID, color, reward or result. GameMode checks assignment, Playing status, epoch and action token before constructing the core placement request with its own actor ID. The unchanged core validates turn/cell/outcome and commits atomically. Rejections preserve the complete authoritative state, RNG, revisions and timer deadlines. Action tokens stop delayed duplicates from becoming valid when the same player's next turn arrives; epochs reject requests from before restart.
+
+First network player waits; the second resets/starts the match and Black moves first. A third connection stays unassigned and cannot act. An assigned disconnect publishes SessionEnded, cancels timers and rejects further play without inventing a Gomoku winner. Reconnect is unsupported. A full-board in-progress fixture with core-legal but unexposed card actions also ends the runtime slice; the core outcome is not rewritten to Draw. Start a new session after SessionEnded.
+
+Development restart is an explicit server grant to the local listen-server controller, separate from seat/color. Reliable `ServerDevelopmentRestart(Epoch)` rechecks this grant and the current session/epoch; arbitrary remote requests reject even on that player's turn. Authorized restart resets board/hands and RNG, advances epoch and publishes both views. This is a development control, not a rematch vote. No dedicated-console command or server packaging is included yet.
+
+### Presentation consistency and standalone scope
+
+Slate now holds only its owning controller, reads its coherent public/own-private display queries and sends coordinate/restart intents. It has no GameMode/full-match query, direct submit/reset/timer call or reconstructed partial core state. Hover uses public empty/forbidden/session/turn hints; the server remains the final validator. Wrong-turn and invalid placement requests can return explicit feedback instead of silently disappearing behind a UI filter.
+
+Local viewport creation no longer needs `GetAuthGameMode`; headless/dedicated authority creates no view. GameState/private `OnRep` callbacks refresh presentation, and server publication explicitly uses the same refresh path for the listen host. Public/private snapshots must share epoch and revision before input is ready. Each accepted commit updates both owners' revision even if their hands did not change. Accepted acknowledgements wait for a coherent revision at least as new as the acknowledgement, supporting coalescing; acknowledgements do not fabricate board/card state. One UI request remains outstanding until its acknowledgement is accounted for, including across resets. Old-epoch display contents/feedback are discarded.
+
+Standalone ordinary hot-seat uses the same controller/server adapter; only an explicitly initialized `NM_Standalone` world permits its local controller to act for the current player. This fallback is unavailable in listen/dedicated sessions. **Temporary presentation limitation:** this Phase 4A view exposes ordinary placement and earned own-hand inspection only, including in standalone. The previous card-targeting/Ghost/Tetris controls are not exposed by this view; their core rules, local runtime timer/input methods, geometry/targeting helpers and all prior tests remain intact. Rebuilding their presentation/transport is deferred to Phase 4B rather than maintaining a second UI-to-GameMode path.
+
+### Agent validation
+
+Unreal **5.8.2 Win64 Development Editor build succeeded**. The full `Gomokards` Automation export at `Saved/Automation/Phase4A/index.json` reports **43 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in progress**: all 40 accepted groups plus:
+
+- `Gomokards.Phase4A.ProjectionSeparation`: full ordinary board/metadata, gameplay IDs/counts, per-owner hand order/duplicates, no projection mutation/RNG use, all result representations.
+- `Gomokards.Phase4A.ReflectedPrivacyAndRpcContract`: compiled reflected field inventory, actual lifetime replication conditions, owner-relevant controller, typed reliable server placement parameters without an actor ID, and owner Client acknowledgement (no multicast).
+- `Gomokards.Phase4A.AuthorityLifecycleAndPresentation`: waiting/two-seat/third/disconnect lifecycle; reversed seat mapping; complete-state rejection safety; stale/duplicate tokens; exact core reward/private delivery; win/terminal fixtures; remote/admin restart; public/private/ack ordering and coalescing; reset acknowledgement gating; constructing/reading Slate in a world with no authoritative GameMode.
+
+The first test run exposed fixture setup errors (replication indices needed the engine's runtime initialization; a synthetic future epoch needed to be advanced past when restoring the fixture). Those were corrected, and the final exported complete suite above passed. Review also added the reset/ack outstanding-request regression. The editor logs contain environment/startup warnings about the G: file journal and editor layout compatibility; these are not Automation test warnings.
+
+Static review confirms only explicit projection properties are replicated, no hand IDs are reachable through the public DTO, private hand replication is owner-only, the server derives actors and grants restart permission, and Slate has no GameMode access or both-hands debug rendering. Existing Core/Cards, all 40 prior test groups, map/config/build dependencies and assets are unchanged. Generated/cache files are excluded from the implementation commit. These are in-process authority/projection/reflection checks, **not a packet-capture test or proof of real two-process delivery**. No agent-driven gameplay was performed.
+
+### Manual PIE Validation Checklist — user pending
+
+Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, preferably separate PIE processes when checking ownership. For observing the waiting state, launch the listen server before connecting the second instance; automatic two-window startup may make it brief.
+
+1. First player shows “Waiting for second player” and cannot place. Second join starts an empty board with Black current. Each window shows its own correct identity, and both show public hand counts.
+2. Place Black from Black's window: both boards/action counts/turns agree. Click from White's window while Black is current, then test an occupied point on the correct turn: rejection feedback appears and neither board changes. Actor spoofing and stale/duplicate requests are covered automatically; no user-facing spoof control is added.
+3. From a fresh match, use zero-based board coordinates: Black `(5,5)`, White `(6,5)`, Black `(0,0)`, White `(7,5)`, Black `(8,5)`. Black should earn exactly one card. Black sees its name; White sees only Black's count increase. Card entries remain disabled in both windows.
+4. Continue/restart and form an ordinary five-in-a-row. Both windows show the same winner; further placements reject without changing the result.
+5. Remote development restart is disabled (server rejection is covered automatically). Use the host's development restart: both boards/hands/counts clear, Black starts, and further normal input works without stale feedback. Rapid input around restart must not add an old move.
+6. Close/disconnect one player: the remaining window shows SessionEnded, no winner is invented and placements reject. A new session is needed. If practical, repeat identity/turn/restart checks with the reversed assignment fixture; the automated suite already covers a White development host, and no client-selectable seat switch is exposed.
+
+After PIE passes, the user can perform a separate two-PC LAN direct-address validation. **Manual PIE acceptance is pending; LAN and Internet have not been demonstrated.** The implementation commit is made under this request's explicit commit/push instruction while manual validation remains pending. Phase 4B card/Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work are not implemented. No promise is made against a malicious listen-server host, who owns authoritative memory.

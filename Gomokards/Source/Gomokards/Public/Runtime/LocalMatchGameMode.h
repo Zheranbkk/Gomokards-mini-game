@@ -4,7 +4,10 @@
 #include "Core/MatchRules.h"
 #include "Core/TetrisRules.h"
 #include "Containers/Ticker.h"
+#include "Runtime/MatchNetTypes.h"
 #include "LocalMatchGameMode.generated.h"
+
+class ALocalMatchPlayerController;
 
 DECLARE_MULTICAST_DELEGATE(FLocalMatchChanged);
 
@@ -15,6 +18,10 @@ class GOMOKARDS_API ALocalMatchGameMode : public AGameModeBase
 public:
     ALocalMatchGameMode();
     virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
+    virtual void PostLogin(APlayerController* NewPlayer) override;
+    virtual void Logout(AController* Exiting) override;
+    FMatchActionAck PlaceFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ExpectedActions, FIntPoint Point);
+    FMatchActionAck RestartFrom(ALocalMatchPlayerController* Controller, uint64 Epoch);
     const Gomokards::FMatchState& GetMatch() const { return Match; }
     Gomokards::FActionResult Submit(const Gomokards::FActionRequest& Request);
     void NewMatch();
@@ -26,6 +33,18 @@ public:
     virtual void BeginDestroy() override;
 private:
     Gomokards::FMatchState Match;
+    TMap<TWeakObjectPtr<ALocalMatchPlayerController>, int32> Assignments;
+    TSet<TWeakObjectPtr<ALocalMatchPlayerController>> DevelopmentAdmins;
+    EMatchSession Session = EMatchSession::WaitingForPlayers;
+    uint64 MatchEpoch = 0;
+    uint64 Revision = 0;
+    bool bStandaloneSession = false;
+    bool bSessionInitialized = false;
+    void Join(ALocalMatchPlayerController* Controller, bool bGrantAdmin);
+    void Leave(ALocalMatchPlayerController* Controller);
+    void PublishViews();
+    FMatchActionAck Acknowledgement(EMatchIntentError Error) const;
+    friend class FMatchNetworkTest;
     void ScheduleGhostPreparation();
     void CancelGhostPreparation();
     bool PollGhostPreparation(double Now, uint64 Generation);

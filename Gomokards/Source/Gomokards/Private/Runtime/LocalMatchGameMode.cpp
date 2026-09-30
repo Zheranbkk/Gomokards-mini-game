@@ -1,5 +1,6 @@
 #include "Runtime/LocalMatchGameMode.h"
 #include "Runtime/LocalMatchPlayerController.h"
+#include "Runtime/LocalMatchGameState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/Guid.h"
 #include "HAL/PlatformTime.h"
@@ -7,19 +8,22 @@
 ALocalMatchGameMode::ALocalMatchGameMode()
 {
     DefaultPawnClass = nullptr;
+    GameStateClass = ALocalMatchGameState::StaticClass();
     PlayerControllerClass = ALocalMatchPlayerController::StaticClass();
 }
 void ALocalMatchGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
     Super::InitGame(MapName, Options, ErrorMessage);
+    bSessionInitialized=true;
+    bStandaloneSession=GetNetMode()==NM_Standalone;
     if (UGameplayStatics::HasOption(Options, TEXT("Seed")))
     { StartWithSeed(UGameplayStatics::GetIntOption(Options, TEXT("Seed"), 0)); }
     else { NewMatch(); }
 }
 void ALocalMatchGameMode::NewMatch()
 {
-    const FGuid Session = FGuid::NewGuid();
-    int32 Seed = static_cast<int32>(Session.A ^ Session.B ^ Session.C ^ Session.D);
+    const FGuid SeedGuid = FGuid::NewGuid();
+    int32 Seed = static_cast<int32>(SeedGuid.A ^ SeedGuid.B ^ SeedGuid.C ^ SeedGuid.D);
     if (Seed == 0 || Seed == Match.Random.GetInitialSeed()) { Seed = Match.Random.GetInitialSeed() ^ 0x5a179b3d; }
     StartWithSeed(Seed);
 }
@@ -28,15 +32,20 @@ void ALocalMatchGameMode::StartWithSeed(int32 Seed)
     CancelGhostPreparation();
     CancelTetrisGravity();
     Match.Reset(Seed);
+    ++MatchEpoch; Revision=0;
+    PublishViews();
     OnMatchChanged.Broadcast();
 }
 Gomokards::FActionResult ALocalMatchGameMode::Submit(const Gomokards::FActionRequest& Request)
 {
+    if (bSessionInitialized && !bStandaloneSession && Request.Type!=Gomokards::EActionType::PlaceStone)
+    { return {Gomokards::EActionError::UnsupportedAction, false}; }
     const auto Result = Gomokards::ResolveAction(Match, Request);
     if (Result.IsAccepted())
     {
         if (Match.GhostPhase == Gomokards::EGhostPhase::Preparation) { ScheduleGhostPreparation(); }
         if (Match.Tetris.bActive) { ScheduleTetrisGravity(); }
+        PublishViews();
         OnMatchChanged.Broadcast();
     }
     return Result;
@@ -121,4 +130,107 @@ bool ALocalMatchGameMode::SubmitTetrisAt(Gomokards::ETetrisInput Input, double N
     if (bSoftDrop) { TetrisDeadline=Now+0.5; }
     OnMatchChanged.Broadcast();
     return true;
+}
+
+
+void ALocalMatchGameMode::PostLogin(APlayerController* NewPlayer)
+{
+    Super::PostLogin(NewPlayer);
+    if (auto* PC=Cast<ALocalMatchPlayerController>(NewPlayer))
+    {
+        // Permission is server granted, independent of seat, never supplied by an RPC.
+        Join(PC, PC->IsLocalController() && GetNetMode()!=NM_DedicatedServer);
+    }
+}
+void ALocalMatchGameMode::Logout(AController* Exiting)
+{
+    if (auto* PC=Cast<ALocalMatchPlayerController>(Exiting)) { Leave(PC); }
+    Super::Logout(Exiting);
+}
+void ALocalMatchGameMode::Join(ALocalMatchPlayerController* Controller, bool bGrantAdmin)
+{
+    if (!Controller || Assignments.Contains(Controller)) { return; }
+    if (Assignments.Num()>=2 || Session==EMatchSession::SessionEnded)
+    {
+        Controller->PublishPrivate(MakePrivateView(Match,INDEX_NONE,false,MatchEpoch,Revision));
+        return; // Deliberately unassigned; no spectator/reconnect protocol.
+    }
+    TArray<int32> Used; Assignments.GenerateValueArray(Used);
+    for (const auto& Player : Match.Players)
+    {
+        if (!Used.Contains(Player.Id)) { Assignments.Add(Controller,Player.Id); break; }
+    }
+    if (bGrantAdmin) { DevelopmentAdmins.Add(Controller); }
+    if (bStandaloneSession || Assignments.Num()==2)
+    {
+        Session=EMatchSession::Playing;
+        // Preserve an explicit development seed while resetting board/hands for both seats.
+        StartWithSeed(Match.Random.GetInitialSeed());
+    }
+    else { PublishViews(); }
+}
+void ALocalMatchGameMode::Leave(ALocalMatchPlayerController* Controller)
+{
+    DevelopmentAdmins.Remove(Controller);
+    if (Assignments.Remove(Controller)==0) { return; }
+    Session=EMatchSession::SessionEnded;
+    CancelGhostPreparation(); CancelTetrisGravity();
+    PublishViews();
+}
+FMatchActionAck ALocalMatchGameMode::Acknowledgement(EMatchIntentError Error) const
+{
+    FMatchActionAck Ack;
+    Ack.Epoch=MatchEpoch; Ack.Revision=Revision; Ack.Error=Error;
+    Ack.bAccepted=Error==EMatchIntentError::None;
+    return Ack;
+}
+FMatchActionAck ALocalMatchGameMode::PlaceFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ExpectedActions, FIntPoint Point)
+{
+    const int32* Assigned=Assignments.Find(Controller);
+    if (!Assigned) { return Acknowledgement(EMatchIntentError::Unassigned); }
+    if (Session!=EMatchSession::Playing) { return Acknowledgement(EMatchIntentError::NotPlaying); }
+    if (Epoch!=MatchEpoch) { return Acknowledgement(EMatchIntentError::StaleEpoch); }
+    if (ExpectedActions!=Match.CompletedActions) { return Acknowledgement(EMatchIntentError::StaleAction); }
+    // Only an explicitly initialized standalone world permits hot-seat operation.
+    const int32 Actor=bStandaloneSession && GetNetMode()==NM_Standalone && Controller->IsLocalController()
+        ? Match.Players[Match.CurrentPlayerIndex].Id : *Assigned;
+    const auto Result=Submit(Gomokards::FActionRequest::Place(Actor,Point));
+    auto Ack=Acknowledgement(Result.IsAccepted() ? EMatchIntentError::None : EMatchIntentError::RuleRejected);
+    Ack.RuleError=static_cast<uint8>(Result.Error); Ack.bBlockingReward=Result.bBlockingReward;
+    return Ack;
+}
+FMatchActionAck ALocalMatchGameMode::RestartFrom(ALocalMatchPlayerController* Controller, uint64 Epoch)
+{
+    if (!Assignments.Contains(Controller) || !DevelopmentAdmins.Contains(Controller))
+    { return Acknowledgement(EMatchIntentError::Unauthorized); }
+    if (Epoch!=MatchEpoch) { return Acknowledgement(EMatchIntentError::StaleEpoch); }
+    // A disconnected session cannot be revived into an unsupported reconnect flow.
+    if (Session!=EMatchSession::Playing) { return Acknowledgement(EMatchIntentError::NotPlaying); }
+    NewMatch();
+    return Acknowledgement(EMatchIntentError::None);
+}
+void ALocalMatchGameMode::PublishViews()
+{
+    ++Revision;
+    TArray<int32> Occupied; Assignments.GenerateValueArray(Occupied);
+    if (bStandaloneSession && !Assignments.IsEmpty())
+    { Occupied.Reset(); for (const auto& Player : Match.Players) { Occupied.Add(Player.Id); } }
+    // No exposed card actions in this slice. End a full-board test instead of inventing a core draw.
+    if (bSessionInitialized && Session==EMatchSession::Playing && Match.Result.Status==Gomokards::EMatchStatus::InProgress)
+    {
+        bool bPlaceExists=false;
+        for (const auto& Cell : Match.Board.Cells)
+        { if (Cell.Stone==Gomokards::EStone::Empty && !Cell.bForbidden) { bPlaceExists=true; break; } }
+        if (!bPlaceExists) { Session=EMatchSession::SessionEnded; CancelGhostPreparation(); CancelTetrisGravity(); }
+    }
+    if (auto* GS=Cast<ALocalMatchGameState>(GameState))
+    { GS->Publish(MakePublicView(Match,Occupied,Session,MatchEpoch,Revision)); }
+    for (const auto& Pair : Assignments)
+    {
+        if (auto* PC=Pair.Key.Get())
+        {
+            const int32 ViewedPlayer=bStandaloneSession ? Match.Players[Match.CurrentPlayerIndex].Id : Pair.Value;
+            PC->PublishPrivate(MakePrivateView(Match,ViewedPlayer,DevelopmentAdmins.Contains(PC),MatchEpoch,Revision));
+        }
+    }
 }
