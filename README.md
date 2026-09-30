@@ -359,7 +359,7 @@ Tetris, Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, networking 
 
 ## Unreal Migration Phase 3C Tetris
 
-Continues on `ue-migration` from accepted Phase 3B `ea5f4500449ffe1957b60d9e7227ea55592741e0`. The user personally completed and passed Ghost gameplay validation; its status above is updated. This phase implements **Tetris only**, using the newly specified four-edge rules. Earlier migration records remain historical. The user authorizes one implementation commit/push after agent validation, before the manual pass. The user subsequently passed core Tetris functionality and identified the against-gravity movement issue corrected in Phase 3C.1; focused manual recheck is pending.
+Continues on `ue-migration` from accepted Phase 3B `ea5f4500449ffe1957b60d9e7227ea55592741e0`. The user personally completed and passed Ghost gameplay validation; its status above is updated. This phase implements **Tetris only**, using the newly specified four-edge rules. Earlier migration records remain historical. The user authorizes one implementation commit/push after agent validation, before the manual pass. The user subsequently passed core Tetris functionality and identified the against-gravity movement issue corrected in Phase 3C.1; focused manual recheck has now passed per the user.
 
 ### Impact, ownership and action boundaries
 
@@ -407,7 +407,7 @@ Unreal **5.8.2 Win64 Development Editor build succeeded**, with MSVC 14.44 and W
 
 `Private/Tests/TetrisTests.cpp` covers activation/effects; shapes/rotation; four-edge geometry/clearance/eligible sampling; crowded fallback/skips; absolute movement/collision; gravity/locks; six operators/full-sequence determinism; simultaneous connected clearing; final clear/evaluation/reset; pool/shape RNG/presentation key mapping; and runtime deadlines, soft drops, rejection, restart/stale callbacks, exit and teardown. All existing 29 groups remain and pass. Static review checks one authoritative state, action ordering, timer lifecycle, root keyboard routing and unchanged LocalMatch map/GameMode references. No agent gameplay or screenshot automation was performed. Generated binaries/caches/logs/reports remain ignored and excluded from the commit.
 
-**User-performed Phase 3C validation: core Tetris functionality passed.** Hands-on testing found the against-gravity movement issue, corrected in Phase 3C.1. **Focused manual recheck is pending**, distinct from the agent's compile, automation and static checks.
+**User-performed Phase 3C validation: core Tetris functionality passed.** Hands-on testing found the against-gravity movement issue, corrected in Phase 3C.1. **Focused manual recheck completed and passed per the user**, distinct from the agent's compile, automation and static checks.
 
 ### Manual Gameplay Validation Checklist — Tetris only
 
@@ -424,7 +424,7 @@ Use the existing launch procedure with `/Game/Maps/LocalMatch?Seed=9` and at lea
 
 Keep the fixed-size English development HUD, visible hands, small value state, explicit dispatch and full-board scans. Rotation has the documented fixed bounding-box origin and no kicks. Missed real-time deadlines do not cause catch-up bursts. Packaged-build validation, production UI/art/audio, score, hold, hard drop, next-piece preview, projection, animation, save/replay imports and generic mode/timer frameworks remain out of scope.
 
-Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, four-player rules and networking remain unsupported. Ordinary no-legal-action adjudication retains its existing explicit decision boundary. Phase 3C core functionality passed user testing; the focused Phase 3C.1 movement recheck remains pending.
+Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, four-player rules and networking remain unsupported. Ordinary no-legal-action adjudication retains its existing explicit decision boundary. Phase 3C core functionality passed user testing; the focused Phase 3C.1 movement recheck has also passed per the user.
 
 ## Unreal Migration Phase 3C.1 Tetris Movement Correction
 
@@ -434,6 +434,128 @@ The rejection preserves the complete match state, RNG, rotation, ordinary action
 
 The existing movement and runtime test groups now explicitly cover all four rejected keys and all twelve allowed orientation/direction combinations. Complete-state equality and unchanged runtime deadline/notifications are asserted on rejection. All prior groups are preserved.
 
-Agent validation: Unreal 5.8.2 Win64 Development Editor build succeeded. The complete Gomokards Automation suite exported **40 passed, 0 failed, 0 test warnings, 0 skipped, 0 in progress**, verified in `Saved/Automation/Phase3C1/index.json`. Final diff review confirms only the core guard, movement/runtime regression assertions and README changed; generated/cache files are excluded. User-reported core Tetris functionality passed; the identified movement issue is corrected here, with focused manual recheck pending. No agent gameplay is performed.
+Agent validation: Unreal 5.8.2 Win64 Development Editor build succeeded. The complete Gomokards Automation suite exported **40 passed, 0 failed, 0 test warnings, 0 skipped, 0 in progress**, verified in `Saved/Automation/Phase3C1/index.json`. Final diff review confirms only the core guard, movement/runtime regression assertions and README changed; generated/cache files are excluded. User-reported core Tetris functionality passed; the identified movement issue is corrected here, with focused manual recheck completed and passed per the user. No agent gameplay is performed.
 
-Manual Gameplay Validation Checklist: for Top, Bottom, Left and Right spawns, verify respectively Up, Down, Left and Right do nothing; verify the gravity-direction key and both perpendicular keys still work when space exists. Gravity must continue normally after rejected input.
+User-performed Phase 3C.1 focused manual validation: **completed and passed** on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7`. The user confirmed all four opposite-gravity rejections and correct gravity/perpendicular movement. Retained completed Manual Gameplay Validation Checklist: for Top, Bottom, Left and Right spawns, verify respectively Up, Down, Left and Right do nothing; verify the gravity-direction key and both perpendicular keys still work when space exists. Gravity must continue normally after rejected input.
+
+
+## Phase 4A Multiplayer Architecture Impact Pass
+
+**PROPOSED / NOT YET IMPLEMENTED.** Reviewed against accepted `ue-migration` implementation `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7`. Phase 3C.1 focused manual validation passed. This pass changes README only: no networking code, dependencies, configuration or assets are added. Multiplayer has not been demonstrated. The following is the plan for a separately authorized Phase 4A implementation, followed by Phase 4B card/mode networking and later Phase 4C connection/session services.
+
+### Current dependencies and exact breakpoints
+
+Paths below are relative to `Gomokards/Source/Gomokards/`.
+
+| Inspected component | Current behavior and multiplayer impact |
+| --- | --- |
+| `Public/Runtime/LocalMatchGameMode.h`, `Private/Runtime/LocalMatchGameMode.cpp` | Own the sole plain `FMatchState`; `InitGame` immediately seeds/resets; `Submit` resolves actions and broadcasts `OnMatchChanged`; Ghost and Tetris use weak core tickers, monotonic deadlines and generations. Keep this server authority. Add connection assignment/start gating and publish projections after accepted changes. Public C++ access alone is not network authorization. |
+| `Private/Runtime/LocalMatchPlayerController.cpp` | `BeginPlay` requires `GetAuthGameMode` before constructing Slate. A remote client therefore gets no view. Create UI for local controllers with a viewport, independent of GameMode; wait for replicated identity/state readiness. Dedicated servers create no UI. |
+| `Private/Presentation/SLocalMatchView.h/.cpp` | Holds GameMode, calls `GetMatch`, `Submit`, `NewMatch`, `SubmitTetris`, countdown query and subscribes to its delegate. `Refresh` exposes both hands; `CardClick` passes a player ID; hover calls core validation against full state. Replace this entire access boundary with the owning controller's read-only presentation queries and intent methods. |
+| `Public/Presentation/MatchPresentation.h`, private implementation | `FTargetSelection::BoardRequest` chooses the current player's ID, appropriate for hot-seat but unsafe as a client identity source. Target selection, color/result/effect labels consume full state. Retain geometry and key mapping; adapt state-dependent helpers to projected information and local assigned identity. Local eligibility/hover checks are hints, not authorization. Do not manufacture a partial `FMatchState` on clients to run rules. |
+| `Public/Core/MatchState.h`, `Private/Core/MatchState.cpp` | Includes both hands, full true board, RNG, result/effects/modes. Players default to IDs 0/1 and Black/White; `SingleOpponentIndex` centralizes the two-player assumption. Preserve gameplay IDs; do not substitute connection index, UE PlayerId, host status or controller index. |
+| `Private/Core/MatchRules.cpp`, `Private/Cards/CardDefinitions.cpp`, `CardEffects.cpp` | Validation trusts the caller to supply a player ID, then checks turn/ownership/targets. Candidate-copy resolution includes RNG/rewards and commits atomically. Ten-card definitions and draw/Steal randomness already belong to the core. Only the server adapter may construct authoritative requests from controller assignment. |
+| `Private/Core/TetrisRules.cpp` and GameMode timer/input methods | Mode input has no caller identity, deliberately adequate for local hot-seat. Network adapter must authorize against `Players[Tetris.OperatorIndex].Id`, not the unchanged ordinary `CurrentPlayerIndex`. Timers remain server-only; rejected input must not reset a deadline. |
+| `Gomokards.Build.cs`, project/config/map | Already uses Core/CoreUObject/Engine/InputCore/EnhancedInput and private Slate/SlateCore; no active OnlineSubsystem dependency. `DefaultEngine.ini` uses `/Game/Maps/LocalMatch` and `/Script/Gomokards.LocalMatchGameMode`. Reuse the map; select the new GameState in the GameMode constructor. Basic Engine replication needs no online service/plugin. |
+| `Private/Tests/*Tests.cpp` | 40 accepted groups include pure rules, presentation helpers and transient runtime worlds with deterministic timer seams. These do not demonstrate connections, replication privacy or RPC routing; keep them and add dedicated boundary/integration coverage. |
+
+### Proposed ownership and data flow
+
+Initial model: two-player listen server plus remote client. Host contains a server and one local client; both players use the same controller contract. This is server-authoritative, not peer-authoritative simulation or lockstep. A future dedicated server runs the same owner/core/projection code without a local viewport.
+
+```mermaid
+flowchart LR
+  H[Host local Slate] --> HP[Owning PlayerController intent contract]
+  C[Remote Slate] --> CP[Owning PlayerController intent contract]
+  HP -->|Server RPC, local execution on host| G[Server GameMode: assignment and validation]
+  CP -->|Server RPC| G
+  G --> R[Pure rules and authoritative FMatchState]
+  T[Server timers] --> G
+  R --> P[Server projection conversion]
+  P --> GS[GameState public snapshot]
+  P --> PV[Each owning controller: private view]
+  GS --> V[Local read-only view refresh]
+  PV --> V
+  G -->|Owner Client RPC: action result| V
+  V --> H
+  V --> C
+```
+
+| Object | Proposed responsibility |
+| --- | --- |
+| GameMode, server only | Sole authoritative match, controller-to-`FPlayerId` table, two-seat lifecycle, intent authorization, core calls, all RNG/timers, resets, projection publication. No host-player shortcut. |
+| New `ALocalMatchGameState : AGameStateBase` | Replicated public projection and runtime session status; read-only on clients. No hands, RNG or rule execution. `OnRep` announces refreshed local presentation. |
+| Existing PlayerController, server and owner | Reliable intent RPCs; server derives actor from its own assignment table. Owner-only replicated private view, local read-only access to public/private views, small action-result Client RPC and view-change delegate. Owns UI, never a second authoritative match. |
+| PlayerState | Keep Unreal's existing connection/player metadata. Its engine PlayerId is not `FPlayerId`. A custom PlayerState is unnecessary initially: public gameplay assignments live in GameState; own assigned ID and hand live on the owning controller. Do not put unconditionally replicated hands on globally visible PlayerStates. |
+| Slate | Reads only projected data through controller; sends coordinates/card/input intent; owns hover, selection and pending-feedback state only. Host UI follows the same privacy/view contract. |
+| Core | Keep plain types and deterministic operations unchanged by networking: no reflection/replication macros, RPCs, authority branches, UI or OnlineSubsystem. |
+
+A direct reflected/replicated `FMatchState` (option A) entangles core types with replication and risks exposing secrets; per-field conditions still leave visibility and ownership problems. Prefer option B: a few explicit reflected projection DTOs outside Core. A small server conversion function called by GameMode produces public and per-owner projections after commits, resets and timer transitions. These are derived transport/display state, never independently mutable gameplay copies. No custom serialization framework, per-cell Actors or new service layer is warranted.
+
+### Public/private inventory and refresh consistency
+
+| Visibility / owner | Exact proposed information |
+| --- | --- |
+| Public GameState, Phase 4A | 361 row-major display cells (ordinary Empty/Black/White plus forbidden flag); Barrier anchors; two gameplay ID/stone assignments and occupied-seat status; current gameplay ID; completed actions; result status/winning stone/decision reason; Basics lock and Confusion count (currently intentionally displayed); session status and match epoch/revision. Existing mode fields are inactive defaults until exposed in Phase 4B. |
+| Public mode extensions, Phase 4B | Ghost phase, placements remaining, display deadline and occupancy/redacted cells; Tetris active flag, block opportunity, operator gameplay ID, shape, origin, rotation, edge/derived gravity and true block color. Never expose future random draws. |
+| Owner-private PlayerController | Assigned gameplay ID, own ordered hand card IDs including duplicates, epoch/revision. Use owner-only replication conditions; only the corresponding client receives these fields. Own count derives from own array. Rebuild both owners' private views after Swap/Steal later; no public hand-content event. |
+| Server only | Full `FMatchState`, both authoritative hands, RNG seed/current stream, Ghost-hidden true colors, monotonic timer deadlines/generations, assignment map and development restart authorization. |
+| Unresolved public field | Opponent hand count: do not add it to public replication by inference from the debug HUD; see decision gate below. |
+
+During Ghost Hidden, merely painting replicated true colors gray is insufficient. Future public cell DTO must support occupied-but-color-hidden independently of core `EStone`; redact all hidden cell colors before transport and replace client presentation cache, then publish real colors on reveal. Previously visible information cannot be made unknown again; players may also infer colors from public turns/Confusion. Do not promise cryptographic secrecy against such inference. A listen-server operator can inspect server memory containing all secrets; owner-only replication protects remote delivery, not against a malicious host. Dedicated hosting improves that trust boundary without changing rules.
+
+Public/private properties on different Actors and result RPCs may arrive in different orders. Use a small match epoch (changes on reset) and committed revision shared by projections/acknowledgements. The controller waits for matching public/private revisions before enabling a complete interactive view; old epochs are discarded. Phase 4A publishes both owner projection revisions on each accepted ordinary commit even if a hand is unchanged. These are snapshot coherence markers, not an event log or generic request protocol. Later high-frequency Tetris pose updates can be separate from the slower coherent board/hand snapshot.
+
+GameMode's `OnMatchChanged` may remain a server-side commit notification for tests/publication. It must no longer be Slate's access to authority. GameState/private-view `OnRep` callbacks feed one controller-local refresh delegate. Server publication must explicitly invoke that same refresh path for its local host (and standalone) view rather than assume C++ server assignment invokes a client RepNotify. Handle initial GameState/assignment arrival in either order; unbind safely on teardown. Refresh never runs core rules.
+
+### Identity, intent and acknowledgement contract
+
+Server `PostLogin` assigns the first available gameplay seat; initially first connection gets core ID 0/Black and second ID 1/White. This is seat allocation, not a host rule: authority checks consume assigned IDs, and tests must swap controller-seat mappings, including a White host. Neither the client nor a URL-supplied player ID chooses the actor. Unreal connection ownership is the boundary here; no backend/account authentication is claimed. Reject a third gameplay connection; no generic lobby/spectator path.
+
+Use runtime `WaitingForPlayers`, `Playing`, `SessionEnded` outside `FMatchState`. First connection receives identity plus waiting view, with gameplay rejected. Second connection triggers server reset/start and coherent projections; Black moves regardless of which process owns Black. `InitGame` must stop opening a playable network match immediately. On disconnect, end/invalidate the test session, cancel timers and reject further intents without inventing a Gomoku winner; reconnect/recovery is deferred.
+
+Proposed typed reliable Server RPCs on the owning controller:
+
+- Phase 4A: `ServerPlaceStone(epoch, expectedCompletedActions, x, y)`. Derive actor from the calling controller on the server, verify session/epoch/turn token, then construct `FActionRequest::Place`. No client player ID, stone, result, RNG or board payload.
+- Phase 4B: `ServerPlayCard(epoch, expectedCompletedActions, cardId, optionalTarget)` uses the same route, with bounded enum/target checks then core ownership/target validation. Phase 4A rejects/unexposes card play at the server boundary, including host attempts, while retaining all core cards and earned hands.
+- Phase 4B: `ServerTetrisInput(epoch, activationToken, blockNumber, input)` authorizes the assigned ID against the current Tetris operator before `SubmitTetris`; rejects stale piece input and unknown directions. The block token prevents delayed controls moving the next operator's block. No prediction or client gravity.
+
+The ordinary action token prevents a delayed duplicate click becoming a fresh move when the same player's next turn arrives; epoch prevents a queued pre-restart intent entering a new match. These small stale-intent guards have concrete failure cases. Reliable ordering on a controller plus one outstanding ordinary UI request is enough; do not add per-request sequence numbers, resend queues or an event bus. Validate all requests regardless of UI gating; malformed/wrong-turn/unassigned/stale requests produce zero core/RNG/timer mutation. Use a modest controller input-rate bound when exposing key repeats in Phase 4B, not an anti-cheat framework.
+
+Return a small reliable owner Client RPC `{epoch, revision, accepted/rejectionReason, blockingReward}` for each processed ordinary intent. Rejection needs explicit feedback because no replicated property changes. Accepted feedback does not patch the board or invent the drawn card: projections deliver truth. Buffer accepted feedback until a coherent view in the same epoch has reached at least the acknowledged revision (replication may coalesce intermediate revisions); discard obsolete epochs. Server errors should disclose no opponent secret. No multicast hand/reward payload. Whether observers see reward-count feedback is governed by the visibility decision, not by this private acknowledgement.
+
+Development restart is a separate administrative capability: a server console/test command, or an explicitly server-authorized local-host development control. If exposed through a controller, check server-granted admin permission, not gameplay seat or a client boolean. Remote arbitrary reset requests reject. Reset uses the same server owner/reset/publish boundary and advances epoch. A dedicated server uses its console instead; this is not a privileged host gameplay path or a production rematch vote.
+
+### Timers, future modes and bandwidth
+
+Keep existing monotonic Ghost and Tetris tickers on the server, with generation cancellation on reset/session end. Clients cannot call transitions, lock blocks or advance RNG. Ghost countdown should use a replicated phase-end timestamp plus `AGameStateBase::GetServerWorldTimeSeconds()` for display, not countdown replication every frame. Convert server remaining real duration into that display clock when publishing; do not subtract a raw `FPlatformTime` deadline from world time. Installed UE 5.8 source shows the synchronized API uses world game time. Initial network sessions therefore keep world pause/time dilation disabled (1x); if those features are later supported, add a small real-time clock anchor/rebase for display. Even at displayed zero, wait for the replicated phase change; the real-time server callback remains authoritative.
+
+Ghost Phase 4B publishes Preparation/Hidden/reveal, redacts hidden cells and retains intentional blocking rewards/private delivery. Tetris Phase 4B authorizes the operator separately from ordinary turn, applies corrected absolute-direction inputs on the server, advances real-time gravity there, and publishes active shape/pose/color. Pending UI controls may be shown as pending, never as committed movement. Plain arrays and a public snapshot suit the 19x19 low-frequency Phase 4A board. Re-sending that board/hand presentation on every Tetris input would be wasteful: split an independently replicated small active-piece projection from board/result state when Phase 4B needs it; publish board on locks/clears. This changes transport layout, not core ownership. No FastArraySerializer, custom compression, sockets/protocol, state hashing, prediction or rollback now; measure actual latency/bandwidth first.
+
+### Standalone preservation, files and scope
+
+Replace UI-to-GameMode access in standalone as well. A controller submits through the same server adapter and consumes the same projections. In explicit `NM_Standalone` hot-seat only, the server adapter may authorize its sole local controller for the current ordinary player/current Tetris operator; never enable that fallback on listen/dedicated servers. Show the currently operated player's private hand; retaining a separate both-hands debug display is unnecessary. Keep local card/Ghost/Tetris capability behind this same boundary, with their existing rules and timers. Multiplayer Phase 4A's card restriction is an adapter capability limit, not a rewrite/removal of the ten-card core. Local mode presentation fields can be populated for development without claiming network mode acceptance.
+
+Expected implementation footprint: add `Public/Runtime/LocalMatchGameState.h` + private `.cpp`, a small `Runtime/MatchNetTypes.h` projection header and matching projection conversion functions/file if needed; change existing GameMode/PlayerController headers and implementations; change `SLocalMatchView` and state-dependent presentation helpers; add authority/projection tests and update adapter tests/README. No custom PlayerState, GameInstance subsystem, online module, new map or assets required initially. Register GameState through GameMode; add `Net/UnrealNetwork.h` where needed, keeping network includes outside Core. A server build target and dedicated packaging are later deployment work; viewport creation must already be absent on headless authority.
+
+Required now: identity/authorization, private projection, consistent view refresh/acknowledgement, waiting/start/admin reset and ordinary placement/reward/outcome. Later Phase 4B: expose/regress all ten cards and both timers/modes. Later Phase 4C: chosen discovery/session provider; it connects clients to the same gameplay server. Do not build matchmaking, accounts, ranking, reconnect, replay infrastructure, spectator systems, rematch voting, NAT/relay/EOS/Steam, generic N-player/services/message bus, anti-cheat frameworks or rollback.
+
+### Implementation sequence and acceptance (future work)
+
+1. Resolve the narrow visibility gate below; define public/private DTOs and pure projection tests. Freeze existing 40-group core baseline; no reflected-core migration.
+2. Add GameState and server seat assignment, waiting/start/session-end states and epoch. Test normal and reversed controller-seat mappings without UI.
+3. Add controller placement RPC/acknowledgement and server validation; publish projections after commits and authorized reset. Reward draws still use the existing ten-card server pool; hands are readable only by their owners and card play is unavailable in this network slice.
+4. Migrate Slate and standalone to controller queries/intents, own-hand display and readiness/OnRep refresh; preserve pure geometry and local targeting intent. Remove all UI GameMode/full-state access.
+5. Compile and run the full core suite plus new projection/authority tests: spoof/unassigned/wrong-turn/stale epoch/duplicate turn/invalid coordinates/remote reset leave complete state and RNG unchanged; owner A's projection never contains B's hand; initial, reward and reset projections are coherent. Exercise existing Won/Draw/AwaitingRuleDecision representation via trusted server fixtures. Ordinary placement alone cannot create the existing simultaneous-win Draw; do not invent a draw rule to make it reachable.
+6. User manual PIE pass: two windows (listen server plus client), assigned identities and waiting/start; Black moves only from its own window; both see the same board/action/turn/result; White wrong-turn attempts reject; correct owner alone receives the blocking card contents and feedback; terminal input rejects; admin reset clears both views and queued old intents cannot mutate the new match. Spoofing and actual property privacy require automated/server inspection, not merely disabled buttons. Repeat with host assigned White via a server test fixture, and use separate PIE processes when inspecting privacy.
+7. Then user LAN pass on two physical PCs using direct address connection; no Internet/session provider required. Check no client GameMode access, no host-only gameplay route and no viewport dependency on server-only execution. Actual dedicated deployment testing follows later, without changing rules.
+
+Phase 4A acceptance requires successful compilation/full regression, passing new boundary/privacy tests, synchronized two-client ordinary play, owner-private reward delivery, explicit rejection feedback, authorized restart and a user-reported manual pass. It does not claim all-card multiplayer, Internet connectivity or dedicated packaging. No build/tests/gameplay were run in this documentation pass; the prior 40-test result is historical evidence, not network validation.
+
+### Decision gate and accepted limitations
+
+**Product decision before Phase 4A implementation: is opponent hand count public in all phases, or hidden except explicitly authorized feedback?** Phase 2 explicitly says both-hand debugging establishes no permanent visibility rule. Phase 3B deliberately allows visible reward/hand-count changes during Ghost, but does not settle a universal multiplayer count policy or public card identities. Recommend public counts (never contents) consistently, which fits Ghost's information reward; require the user's choice before adding that public field. If counts remain private elsewhere, retain the explicit Ghost reward-information exception when Phase 4B is specified. Own-hand delivery is settled; it is not blocked conceptually by this choice.
+
+Other items are implementation constraints, not reopened gameplay decisions: connection-order seats are a replaceable assignment policy; restart is a development admin operation; disconnect invalidates the session; no account authentication or hostile-host confidentiality is promised. A full-board Phase 4A test with earned cards may still have core-legal card actions that the network slice deliberately does not expose. Label that as the test slice's capability limit and stop/restart via runtime session status, without rewriting `NoLegalAction`, inventing Draw or changing card availability in the core. Existing no-legal-action product rules remain deferred. Main failure risks are leaked DTO fields, host shortcuts, trusting request IDs as identity, public/private arrival races, late intents crossing resets/blocks, and mixing clock domains; the ownership/projection/epoch/operator checks above address them without a framework.
+
+Unreal-native checks were grounded in the installed UE 5.8 `GameStateBase.cpp` clock implementation and gameplay framework headers, and Epic's [GameMode/GameState guidance](https://dev.epicgames.com/documentation/en-us/unreal-engine/game-mode-and-game-state-in-unreal-engine) and [replication execution-order documentation](https://dev.epicgames.com/documentation/zh-cn/unreal-engine/replicated-object-execution-order-in-unreal-engine). Those engine guarantees support the proposal; no networking implementation is present in this commit.
