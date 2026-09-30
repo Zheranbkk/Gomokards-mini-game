@@ -17,6 +17,8 @@ public:
     const FString& GetFeedback() const { return Feedback; }
     bool IsPresentationReady() const;
     bool CanPlace(FIntPoint Point) const;
+    bool CanPlayCard(uint8 CardId) const;
+    void RequestCard(uint8 CardId);
     bool CanDevelopmentRestart() const;
     void RequestPlace(FIntPoint Point);
     void RequestDevelopmentRestart();
@@ -25,6 +27,7 @@ public:
     FMatchPresentationChanged OnPresentationChanged;
 
     UFUNCTION(Server, Reliable) void ServerPlaceStone(uint64 Epoch, uint64 ExpectedCompletedActions, int32 X, int32 Y);
+    UFUNCTION(Server, Reliable) void ServerPlayCard(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId);
     UFUNCTION(Server, Reliable) void ServerDevelopmentRestart(uint64 Epoch);
     UFUNCTION(Client, Reliable) void ClientActionResult(FMatchActionAck Ack);
 protected:
@@ -43,4 +46,5 @@ private:
     TSharedPtr<SLocalMatchView> MatchView;
     friend class ALocalMatchGameMode;
     friend class FMatchNetworkTest;
+    friend class FBasicCardNetworkTest;
 };

@@ -563,7 +563,7 @@ Unreal-native checks were grounded in the installed UE 5.8 `GameStateBase.cpp` c
 
 ## Phase 4A — Two-player server-authoritative ordinary-placement slice
 
-**Implemented; automated validation passed; Phase 4A PIE manual validation: PASSED.** Based on architecture baseline `d2cfa1a447da726bdcb14e585e8570b1d2449020`. Phase 3C.1 manual acceptance on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7` remains accepted. This section supersedes the implementation/proposed wording and visibility gate in the historical impact pass above. The user validated two-player PIE on `3a60dfc6b1babce27ff175ce7672dcfb1081f322`; two-physical-PC LAN validation remains pending. Internet and dedicated-server deployment are not claimed.
+**Implemented; automated validation passed; Phase 4A PIE manual validation: PASSED.** Based on architecture baseline `d2cfa1a447da726bdcb14e585e8570b1d2449020`. Phase 3C.1 manual acceptance on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7` remains accepted. This section supersedes the implementation/proposed wording and visibility gate in the historical impact pass above. The user validated two-player PIE on `3a60dfc6b1babce27ff175ce7672dcfb1081f322`; two-physical-PC LAN validation remains pending until the first Development packaged build and is not a blocker for Phase 4B. Internet and dedicated-server deployment are not claimed. This Phase 4A record describes its accepted baseline; the Phase 4B.1 section below supersedes its card-capability restrictions.
 
 ### Implemented ownership and transport
 
@@ -634,4 +634,75 @@ Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, prefera
 5. Remote development restart is disabled (server rejection is covered automatically). Use the host's development restart: both boards/hands/counts clear, Black starts, and further normal input works without stale feedback. Rapid input around restart must not add an old move.
 6. Close/disconnect one player: the remaining window shows SessionEnded, no winner is invented and placements reject. A new session is needed. If practical, repeat identity/turn/restart checks with the reversed assignment fixture; the automated suite already covers a White development host, and no client-selectable seat switch is exposed.
 
-**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending.** Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B card/Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work are not implemented. No promise is made against a malicious listen-server host, who owns authoritative memory.
+**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending until the first Development packaged build.** LAN is not a blocker for Phase 4B. Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B.1 below adds only basic card networking; targeted/persistent cards, Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work remain pending. No promise is made against a malicious listen-server host, who owns authoritative memory.
+
+
+## Phase 4B.1 — Basic card networking
+
+**Implemented; automated validation passed; user manual PIE validation pending.** Built on accepted Phase 4A implementation `3a60dfc6b1babce27ff175ce7672dcfb1081f322` and its user PIE acceptance record `28bb4a96289dd2443f403ed1555aaffa4a9cbeff`. Phase 4A manual acceptance remains passed. Physical two-PC LAN validation is intentionally pending until the first Development packaged build, not a prerequisite for this phase.
+
+Only **Restock, Swap Hands and Steal** are now network-playable. The existing authoritative **ten-card draw pool and probabilities are unchanged**. Tactical Nuke, Polarity, Confusion, Barrier, Back to Basics, Ghost and Tetris can still be earned/drawn and appear by their real names in the owner's hand, but remain disabled with “networking not enabled yet.” No targeting or mode transport was added.
+
+### Server path and exact card behavior
+
+Slate calls its owning controller's `RequestCard`; the same reliable `ServerPlayCard(Epoch, ExpectedCompletedActions, uint8 CardId)` path serves host and remote players. There is no client actor ID, target, random index or result payload. GameMode's `CardFrom` checks assignment, Playing status, epoch and action token, then the explicit three-card `IsNetworkCardEnabled` whitelist before constructing the existing core `FActionRequest::Play` with the server-assigned gameplay ID. It uses the existing `Submit` → `ResolveAction` commit path. Core remains responsible for turn, ownership, terminal/lock rules, consumption and effects; **no Core or Cards source was changed**.
+
+The adapter rejects all seven later-phase cards, unsupported IDs and malformed bytes before core mutation. A new runtime-only `CardNotNetworkEnabled` acknowledgement reason produces “Card networking not available until a later phase.” Core card definitions/error enums remain unchanged. All rejections preserve complete state/RNG, revision, public/private snapshots and timer deadlines. Standalone's existing current-player fallback remains restricted to `NM_Standalone`; its view uses the same three-card intent path.
+
+| Card | Accepted existing Core behavior |
+| --- | --- |
+| Restock | Remove the played Restock, then draw exactly two cards with the authoritative RNG. Actor hand size changes by +1 net; opponent hand stays unchanged. |
+| Swap Hands | Remove the played Swap Hands first, then exchange the remaining two hands, including their exact order/duplicates. No RNG use. |
+| Steal | Remove the played Steal first. If the opponent has cards, choose with authoritative RNG, remove the first occurrence of that selected card ID (existing duplicate-order semantics), then append it to the actor's hand. Actor count is unchanged net; victim count decreases by one. If the opponent is empty, Steal is still consumed and the action/turn completes, but no card is transferred and RNG does not advance. |
+
+Every accepted card completes one ordinary action and uses the existing turn/effect/outcome processing. A necessary adapter correction extends the Phase 4A full-board capability check: a current player with a legal network-enabled card can continue even with no empty legal point. If only later-phase actions remain available to Core, the runtime slice still ends with SessionEnded rather than inventing a core Draw.
+
+### Privacy, projections and presentation
+
+Every accepted card increments the normal committed revision and rebuilds the public projection **and both owners' private projections**, with matching epoch/revision. Public GameState continues to contain both hand counts and no card identities. Each owner receives only their resulting own ordered hand. Swap/Steal replace each controller's coherent own-hand display; there is no shared both-hand cache or extra copy of the opponent's new hand. Information players infer from their own previous hand is not artificially erased.
+
+The existing owner acknowledgement and coherence handling are reused unchanged: no drawn/stolen card ID, hand array or board patch is added to acknowledgements. An early accepted acknowledgement cannot fabricate a new hand; input waits for coherent projections. Clients never roll or predict draws/steals. RNG and complete authoritative hands stay in GameMode. Owner-private replication remains `COND_OwnerOnly` on owner-relevant controllers. No new public event, client log or both-hands debug display reveals identities. This does not provide confidentiality against a malicious listen-server host.
+
+Own-card buttons use projected session/turn/result/Basics status, possession, the whitelist, coherence and outstanding-request state as local hints. The server independently validates every request. Host UI still has no direct GameMode call. No new service, network abstraction, targeted payload, map, asset, config or dependency was introduced.
+
+### Agent validation
+
+Unreal **5.8.2 Win64 Development Editor build succeeded**. Exported `Saved/Automation/Phase4B1/index.json` reports **45 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in progress**. The prior 43 groups and their source are preserved. Added:
+
+- `Gomokards.Phase4B1.CardRpcAndWhitelist`: compiled reliable RPC has exactly epoch/action token/card byte; all 256 byte values permit exactly the three supported IDs; all ten cards remain in Core.
+- `Gomokards.Phase4B1.CardAuthorityPrivacyAndCoherence`: all three cards' ownership/turn/session/terminal/token rejection safety; explicit rejection of every later-phase card; deterministic full-state/RNG parity with Core for both seat mappings; both own-hand snapshots/public counts; early acknowledgement and both property arrival orders; no stale hand after Swap/Steal; empty-victim Steal; full-pool later-card rewards/Restock and rejection without consumption; placement after cards; full-board capability handling; and the exact seed/opening recipe below through the server adapter.
+
+Static/reflection review confirms the Phase 4A public/private/ack reflected field inventories and owner-only replication conditions still pass, no `FMatchState`/RNG or card identity array was added to GameState/acknowledgements, both private projections rebuild on each commit, and Slate has no GameMode/full-state resolution path. The only GameState header change grants access to the new Automation fixture. No generated/cache files are included. Startup file-journal/editor-layout warnings are outside Automation test results. These checks are in-process authority/projection tests and compiled reflection inspection, not new real-client gameplay or packet capture. No agent-driven gameplay was performed.
+
+### Manual PIE Validation Checklist — user pending
+
+Use two players, Listen Server + Client, on `/Game/Maps/LocalMatch`. Confirm ordinary placement still works and each window shows only its own exact hand plus both public counts. Test all three cards on their owners' turns; verify both owners can use eligible cards, subsequent ordinary play works, and later-phase cards stay visibly disabled without changing the match. Wrong-turn/absent-card/stale/crafted unsupported RPC rejection is covered automatically; there is no user-facing spoof control.
+
+For reproducible hands without waiting for random rewards, reuse the existing server `?Seed=5751` option. No hand-injection/cheat mechanism was added. For normal in-editor PIE, launch Unreal Editor with this one-session engine config override, then start the two-player PIE session:
+
+```text
+UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=5751"
+```
+
+The installed UE 5.8 `BuildPlayWorldURL` appends `InEditorGameURLOptions` to the PIE map URL. Alternatively, when launching the listen server as a new editor game process, its **Additional Server Game Options** field can supply `?Seed=5751`; that setting is handled by UE's new-process launch path, so do not assume it affects an in-editor host. Do not use the development Restart button before/during the recipe: it intentionally chooses a new seed. Stop/restart PIE to repeat. Remove the optional seed override for ordinary random sessions. The opening/results below are verified by Automation; the editor launch and hands-on observations remain for the user to validate.
+
+Coordinates are zero-based `(column, row)`, counted from the top-left. In each row, Black plays first, then White:
+
+| Pair | Black placement | White placement | Expected reward |
+| --- | --- | --- | --- |
+| 1 | `(5,5)` | `(6,5)` | None |
+| 2 | `(0,0)` | `(7,5)` | None |
+| 3 | `(8,5)` | `(1,0)` | Black: Restock; White: Swap Hands |
+| 4 | `(9,9)` | `(10,9)` | None |
+| 5 | `(12,12)` | `(11,9)` | None |
+| 6 | `(12,9)` | `(5,12)` | Black: Steal |
+| 7 | `(6,12)` | `(0,18)` | None |
+| 8 | `(7,12)` | `(8,12)` | White: Tetris (held, disabled) |
+
+1. After the opening, Black sees `[Restock, Steal]`, White sees `[Swap Hands, Tetris]`; each sees the opponent count **2** only.
+2. Black plays **Restock**: Black's hand becomes `[Steal, Ghost, Steal]`, count **3**; White keeps its own two cards and sees only Black's count change.
+3. White plays **Swap Hands**: Black now sees `[Tetris]`, count **1**; White sees `[Steal, Ghost, Steal]`, count **3**. Neither window gains a second opponent-hand display; old own-hand entries are replaced.
+4. On Black's turn, Tetris remains disabled with the later-phase explanation; clicking it changes nothing. Black places `(17,17)` normally instead.
+5. White plays **Steal**: Black becomes empty (**0**); White sees `[Ghost, Steal, Tetris]` (**3**). No public stolen-card message appears. Continue with an ordinary Black placement and confirm both boards/turns agree. Host and remote client have both played cards through the same UI path.
+
+**Phase 4B.1 user manual PIE validation is pending.** Physical LAN remains pending until a Development packaged build; no LAN/Internet validation is claimed or required now. Phase 4B.2 targeted/persistent cards, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. This focused implementation is committed under the request's explicit commit/push instruction while its manual checklist is handed to the user.

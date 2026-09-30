@@ -6,7 +6,7 @@
 UENUM()
 enum class EMatchSession : uint8 { WaitingForPlayers, Playing, SessionEnded };
 UENUM()
-enum class EMatchIntentError : uint8 { None, Unassigned, NotPlaying, StaleEpoch, StaleAction, Unauthorized, RuleRejected };
+enum class EMatchIntentError : uint8 { None, Unassigned, NotPlaying, StaleEpoch, StaleAction, Unauthorized, RuleRejected, CardNotNetworkEnabled };
 
 // Transport/display values only. Byte encodings follow the stable core enums; no core state is reflected.
 USTRUCT()
@@ -71,3 +71,6 @@ GOMOKARDS_API FMatchPublicView MakePublicView(const Gomokards::FMatchState& Stat
     const TArray<int32>& OccupiedIds, EMatchSession Session, uint64 Epoch, uint64 Revision);
 GOMOKARDS_API FMatchPrivateView MakePrivateView(const Gomokards::FMatchState& State,
     int32 PlayerId, bool bAdmin, uint64 Epoch, uint64 Revision);
+
+// Migration boundary only; the authoritative draw pool and core definitions remain unchanged.
+GOMOKARDS_API bool IsNetworkCardEnabled(uint8 CardId);

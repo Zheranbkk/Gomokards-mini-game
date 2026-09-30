@@ -93,7 +93,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4A"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.1"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
             +SVerticalBox::Slot().AutoHeight()
@@ -108,7 +108,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
                         .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Card play networking arrives in Phase 4B.\nOnly your card contents are shown. Both hand counts are public.")))]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Restock, Swap Hands and Steal are playable. Other cards await a later networking phase.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
                     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
@@ -145,7 +145,10 @@ void SLocalMatchView::Refresh()
     for (uint8 Card : Private.Hand)
     {
         Hands->AddSlot().AutoHeight().Padding(0,2)
-            [SNew(SButton).IsEnabled(false).Text(FText::FromString(CardLabel(static_cast<ECardId>(Card))))];
+            [SNew(SButton)
+                .IsEnabled_Lambda([this,Card]{return Owner->CanPlayCard(Card);})
+                .Text(FText::FromString(CardLabel(static_cast<ECardId>(Card)) + (IsNetworkCardEnabled(Card) ? TEXT("") : TEXT(" — networking not enabled yet"))))
+                .OnClicked_Lambda([this,Card]{Owner->RequestCard(Card);return FReply::Handled();})];
     }
 }
 void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestPlace(Coordinate); }

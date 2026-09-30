@@ -21,6 +21,7 @@ public:
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
     FMatchActionAck PlaceFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ExpectedActions, FIntPoint Point);
+    FMatchActionAck CardFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ExpectedActions, uint8 CardId);
     FMatchActionAck RestartFrom(ALocalMatchPlayerController* Controller, uint64 Epoch);
     const Gomokards::FMatchState& GetMatch() const { return Match; }
     Gomokards::FActionResult Submit(const Gomokards::FActionRequest& Request);
@@ -45,6 +46,7 @@ private:
     void PublishViews();
     FMatchActionAck Acknowledgement(EMatchIntentError Error) const;
     friend class FMatchNetworkTest;
+    friend class FBasicCardNetworkTest;
     void ScheduleGhostPreparation();
     void CancelGhostPreparation();
     bool PollGhostPreparation(double Now, uint64 Generation);

@@ -40,3 +40,9 @@ FMatchPrivateView MakePrivateView(const Gomokards::FMatchState& State, int32 Pla
     }
     return View;
 }
+
+bool IsNetworkCardEnabled(uint8 CardId)
+{
+    using Gomokards::ECardId;
+    return CardId==uint8(ECardId::Restock) || CardId==uint8(ECardId::SwapHands) || CardId==uint8(ECardId::Steal);
+}

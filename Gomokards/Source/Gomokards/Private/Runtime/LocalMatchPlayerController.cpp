@@ -75,6 +75,7 @@ void ALocalMatchPlayerController::RefreshPresentation()
             {
             case EMatchIntentError::Unassigned: Feedback=TEXT("No gameplay seat assigned."); break;
             case EMatchIntentError::NotPlaying: Feedback=TEXT("Session is not playing."); break;
+            case EMatchIntentError::CardNotNetworkEnabled: Feedback=TEXT("Card networking not available until a later phase."); break;
             case EMatchIntentError::Unauthorized: Feedback=TEXT("Development restart is not authorized."); break;
             default: Feedback=TEXT("Stale request rejected. Use the current view."); break;
             }
@@ -90,6 +91,19 @@ bool ALocalMatchPlayerController::CanPlace(FIntPoint Point) const
         DisplayPublic.CurrentPlayerId!=DisplayPrivate.PlayerId || Point.X<0 || Point.Y<0 || Point.X>=19 || Point.Y>=19) { return false; }
     const auto& Cell=DisplayPublic.Cells[Point.Y*19+Point.X];
     return Cell.Stone==0 && !Cell.bForbidden;
+}
+bool ALocalMatchPlayerController::CanPlayCard(uint8 CardId) const
+{
+    return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
+        !DisplayPublic.bCardsDisabled && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        IsNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
+}
+void ALocalMatchPlayerController::RequestCard(uint8 CardId)
+{
+    if (!IsPresentationReady() || bPending) { return; }
+    bPending=true; Feedback=TEXT("Waiting for server...");
+    ServerPlayCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId);
+    OnPresentationChanged.Broadcast();
 }
 bool ALocalMatchPlayerController::CanDevelopmentRestart() const
 { return IsPresentationReady() && !bPending && DisplayPrivate.bDevelopmentAdmin && DisplayPublic.Session==EMatchSession::Playing; }
@@ -112,6 +126,11 @@ void ALocalMatchPlayerController::ServerPlaceStone_Implementation(uint64 Epoch, 
 {
     if (auto* MatchOwner=GetWorld()->GetAuthGameMode<ALocalMatchGameMode>())
     { ClientActionResult(MatchOwner->PlaceFrom(this,Epoch,ExpectedCompletedActions,{X,Y})); }
+}
+void ALocalMatchPlayerController::ServerPlayCard_Implementation(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId)
+{
+    if (auto* MatchOwner=GetWorld()->GetAuthGameMode<ALocalMatchGameMode>())
+    { ClientActionResult(MatchOwner->CardFrom(this,Epoch,ExpectedCompletedActions,CardId)); }
 }
 void ALocalMatchPlayerController::ServerDevelopmentRestart_Implementation(uint64 Epoch)
 {

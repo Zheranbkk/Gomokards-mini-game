@@ -19,4 +19,5 @@ private:
     void Publish(const FMatchPublicView& View);
     friend class ALocalMatchGameMode;
     friend class FMatchNetworkTest;
+    friend class FBasicCardNetworkTest;
 };
