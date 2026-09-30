@@ -13,6 +13,7 @@ public:
     void Construct(const FArguments& Args);
     virtual ~SLocalMatchView() override;
     virtual bool SupportsKeyboardFocus() const override { return true; }
+    virtual FReply OnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
     virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
     virtual FReply OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event) override;
     void Refresh();

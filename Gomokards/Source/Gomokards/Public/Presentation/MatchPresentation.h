@@ -1,4 +1,6 @@
 #pragma once
+#include "Core/TetrisRules.h"
+#include "InputCoreTypes.h"
 
 #include "Core/MatchRules.h"
 
@@ -30,6 +32,8 @@ struct GOMOKARDS_API FTargetSelection
 
 GOMOKARDS_API FLinearColor StoneDisplayColor(const FMatchState& State, EStone Stone);
 GOMOKARDS_API FString GhostLabel(const FMatchState& State, double PreparationSeconds);
+GOMOKARDS_API FString TetrisLabel(const FMatchState& State);
+GOMOKARDS_API TOptional<ETetrisInput> TetrisInputForKey(const FKey& Key);
 GOMOKARDS_API FString CardLabel(ECardId Card);
 GOMOKARDS_API FString StoneLabel(EStone Stone);
 GOMOKARDS_API FString EffectLabel(const FMatchState& State);

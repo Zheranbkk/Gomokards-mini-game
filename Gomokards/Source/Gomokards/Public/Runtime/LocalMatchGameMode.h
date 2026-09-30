@@ -2,6 +2,7 @@
 
 #include "GameFramework/GameModeBase.h"
 #include "Core/MatchRules.h"
+#include "Core/TetrisRules.h"
 #include "Containers/Ticker.h"
 #include "LocalMatchGameMode.generated.h"
 
@@ -20,6 +21,7 @@ public:
     void StartWithSeed(int32 Seed); // Explicit reproducible session; never changes rules RNG policy.
     FLocalMatchChanged OnMatchChanged;
     double GhostPreparationSecondsRemaining() const;
+    bool SubmitTetris(Gomokards::ETetrisInput Input);
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void BeginDestroy() override;
 private:
@@ -31,4 +33,12 @@ private:
     double GhostDeadline = 0;
     uint64 GhostTimerGeneration = 0;
     friend class FGhostRuntimeTest; // Deterministic runtime timer coverage; no public state injection API.
+    void ScheduleTetrisGravity();
+    void CancelTetrisGravity();
+    bool PollTetrisGravity(double Now, uint64 Generation);
+    bool SubmitTetrisAt(Gomokards::ETetrisInput Input, double Now);
+    FTSTicker::FDelegateHandle TetrisTicker;
+    double TetrisDeadline = 0;
+    uint64 TetrisTimerGeneration = 0;
+    friend class FTetrisRuntimeTest;
 };

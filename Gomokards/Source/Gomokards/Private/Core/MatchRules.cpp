@@ -1,4 +1,5 @@
 #include "Core/MatchRules.h"
+#include "Core/TetrisRules.h"
 #include "Cards/CardEffects.h"
 
 namespace Gomokards
@@ -84,12 +85,13 @@ bool BeginGhostHidden(FMatchState& State)
 }
 bool CanPlayCards(const FMatchState& State)
 {
-    return State.Result.Status == EMatchStatus::InProgress && !State.bCardsDisabled && State.GhostPhase == EGhostPhase::None;
+    return State.Result.Status == EMatchStatus::InProgress && !State.bCardsDisabled && State.GhostPhase == EGhostPhase::None && !State.Tetris.bActive;
 }
 
 EActionError ValidateAction(const FMatchState& State, const FActionRequest& Request)
 {
     if (State.Result.Status != EMatchStatus::InProgress) { return EActionError::MatchStopped; }
+    if (State.Tetris.bActive) { return EActionError::TetrisActive; }
     if (State.GhostPhase == EGhostPhase::Preparation) { return EActionError::GhostPreparation; }
     if (SingleOpponentIndex(State, State.CurrentPlayerIndex) == INDEX_NONE
         || State.Players[0].Id == State.Players[1].Id
@@ -128,7 +130,7 @@ EActionError ValidateAction(const FMatchState& State, const FActionRequest& Requ
     }
 }
 
-static bool HasLegalAction(const FMatchState& State)
+bool HasLegalAction(const FMatchState& State)
 {
     for (const FCell& Cell : State.Board.Cells)
     {
@@ -188,7 +190,9 @@ FActionResult ResolveAction(FMatchState& State, const FActionRequest& Request)
     if (Candidate.Result.Status == EMatchStatus::InProgress)
     {
         Candidate.CurrentPlayerIndex = SingleOpponentIndex(Candidate, ActorIndex);
-        if (Candidate.GhostPhase != EGhostPhase::Preparation && !HasLegalAction(Candidate))
+        if (Request.Type == EActionType::PlayCard && Request.Card == ECardId::Tetris) { BeginTetris(Candidate); }
+        if (Candidate.Result.Status == EMatchStatus::InProgress && !Candidate.Tetris.bActive
+            && Candidate.GhostPhase != EGhostPhase::Preparation && !HasLegalAction(Candidate))
         {
             // Explicitly isolate the unresolved rule; never invent a draw/pass/winner.
             Candidate.Result = {EMatchStatus::AwaitingRuleDecision, EStone::Empty, EDecisionReason::NoLegalAction};

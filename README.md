@@ -306,7 +306,7 @@ B. With an existing Barrier, a Nuke forbidden point and Confusion at 2, play Bas
 
 ## Unreal Migration Phase 3B Ghost
 
-Continues on `ue-migration` from Phase 3A.1 `cb8d1290a19189a9581ae849ab42779cf736cab0`. **The user has accepted the Phase 3A.1 baseline**, including corrected Basics behavior and Barrier geometry/topology. Earlier sections retain their historical validation status; this section records the current baseline and supersedes their obsolete pool/unsupported-card statements. Phase 3B implements **Ghost only**. The user explicitly authorizes this implementation commit/push after agent checks while manual Ghost gameplay validation remains pending.
+Continues on `ue-migration` from Phase 3A.1 `cb8d1290a19189a9581ae849ab42779cf736cab0`. **The user has accepted the Phase 3A.1 baseline**, including corrected Basics behavior and Barrier geometry/topology. Earlier sections retain their historical validation status; this section records the current baseline and supersedes their obsolete pool/unsupported-card statements. Phase 3B implements **Ghost only**. The implementation commit/push was authorized after agent checks and before the hands-on pass. The user has subsequently completed and passed manual Ghost gameplay validation.
 
 ### Impact, state and timer ownership
 
@@ -338,7 +338,7 @@ Unreal **5.8.2 Win64 Development Editor build succeeded**, using MSVC 14.44 and 
 
 The eight Ghost groups cover activation/preparation atomicity; Hidden counting/restrictions; true-color rewards and Confusion; all four reveal outcomes; early/sixth winning rewards; persistent effects/reset; visibility/pool/determinism; and runtime deadline, one-shot notification, restart/stale-callback/teardown behavior. Existing groups remain, with only superseded pool/unsupported-ID expectations updated. An initial failed run exposed incorrect seeded test setup assumptions: White earns an edge-block reward before Black's opening reward. Correcting the setups preserved the existing rules and all prior assertions; the final complete rerun passed.
 
-Static review checked state ownership, action ordering, timer lifecycle, Slate targeting/color/refresh paths and existing map/config references. Generated binaries, caches, logs and test reports are ignored and excluded from the commit. No agent gameplay or screenshot automation was performed. **User-performed manual Ghost gameplay validation is pending**; the checklist below is the handoff, not a claimed pass.
+Static review checked state ownership, action ordering, timer lifecycle, Slate targeting/color/refresh paths and existing map/config references. Generated binaries, caches, logs and test reports are ignored and excluded from the commit. No agent gameplay or screenshot automation was performed. **User-performed manual Ghost gameplay validation is completed and passed**, reported by the user after testing Phase 3B commit `ea5f4500449ffe1957b60d9e7227ea55592741e0`. This hands-on result is distinct from the agent checks above; the checklist below is retained as the completed validation reference.
 
 ### Manual Gameplay Validation Checklist — Ghost only
 
@@ -355,4 +355,73 @@ Use the existing launch procedure with `/Game/Maps/LocalMatch?Seed=9`. Coordinat
 
 The fixed-size English development HUD, visible hands, small state copies and full-board reveal scan remain intentional. Timer delivery occurs on the next engine tick after its real deadline; a suspended process cannot repaint or execute callbacks until resumed. Packaged-build validation, production UI/art/localization and save/replay imports remain out of scope. The pre-existing no-legal-action adjudication gap is retained: an exhausted board before six Hidden placements cannot complete the normal Ghost sequence, and no pass/early reveal/draw rule is invented; restart remains available.
 
-Tetris, Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, networking and four-player modes remain unsupported. No speculative framework or additional card implementation is included. Work stops at Phase 3B pending the user's manual Ghost report.
+Tetris, Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, networking and four-player modes remain unsupported in the Phase 3B baseline. No speculative framework or additional card implementation is included in that phase. Phase 3B is complete and its manual Ghost pass is accepted. Subsequent authorized Phase 3C work is recorded below.
+
+## Unreal Migration Phase 3C Tetris
+
+Continues on `ue-migration` from accepted Phase 3B `ea5f4500449ffe1957b60d9e7227ea55592741e0`. The user personally completed and passed Ghost gameplay validation; its status above is updated. This phase implements **Tetris only**, using the newly specified four-edge rules. Earlier migration records remain historical. The user authorizes one implementation commit/push after agent validation, with **manual Tetris gameplay validation pending**.
+
+### Impact, ownership and action boundaries
+
+`ALocalMatchGameMode` remains the only live owner of one `FMatchState`. New `FTetrisState` contains active status, one-based block opportunity, operator index, shape, clockwise rotation, origin, edge and true color. Gravity derives from the edge. Equality/reset include the whole value. There is no falling-piece copy in Slate, physical Actor or generic mode framework.
+
+Tetris goes through `ResolveAction`: consume once, progress existing Confusion once, complete one ordinary action, transfer once to the opponent, then `BeginTetris` spawns for that opponent. Explicit `ApplyTetrisInput` and `StepTetrisGravity` are deterministic mode operations. Movement, rotation, gravity, locking and skipping never increment `CompletedActions`, transfer the normal turn, consume Confusion or award blocking cards. The normal current player remains the caster's opponent throughout and on continuation after exit.
+
+Operators alternate opponent/caster for six opportunities, three each. Each controls the opposite of their assigned stone color, ignoring Confusion. Remaining Confusion survives for later ordinary successful actions. Authoritative validation rejects ordinary placement/cards during Tetris; targeting is unavailable. Ghost and Tetris cannot overlap through normal play. Basics' permanent card lock remains separate. Existing Polarity colors, Nuke removals/forbidden points and Barrier anchors persist.
+
+### Shapes and four-edge spawn
+
+`Public/Core/TetrisRules.h` and its implementation define the six reference integer footprints: Square (4 cells), L (4), Cross (5), vertical 1x4 Line (4), Z (4), T (4). Each opportunity draws one shape uniformly with replacement from the match RNG. No minimum-variety rule is imposed.
+
+For each edge, enumerate complete canonical footprints touching it; reject only footprints overlapping occupied stones or Nuke forbidden points. For every legal candidate, count consecutive inward translations before an obstacle or the opposite boundary. Keep greatest clearance, then closest bounding-box center to board center, then lowest Y/X origin. Center comparisons use squared integer doubled-center distances.
+
+- **Preferred clearance is 5 grid steps.** Uniformly select among edges whose best candidate reaches at least five. Only multiple eligible choices consume an edge RNG draw.
+- If none reaches five but a legal footprint exists, choose greatest clearance across all edges, then closest center. Final ties use Top, Bottom, Left, Right, then lowest Y/X. Fallback consumes no edge RNG.
+- If no starting footprint exists, skip that opportunity, write/clear no cells, award nothing and advance to the next operator/shape. A skip consumes its shape draw but no normal action, turn or Confusion duration. All six blocked opportunities can exit immediately; there is no top-out loss.
+
+Gravity maps **Top -> Down, Bottom -> Up, Left -> Right, Right -> Left**. Physical obstacles are stones and forbidden points. Barrier never blocks physical movement; it still blocks line connectivity. Edge selection uses the actual shape footprint, not an unrelated board-wide obstruction heuristic.
+
+### Controls, runtime timer and locking
+
+Arrows are absolute in all orientations: Up = -Y, Down = +Y, Left = -X, Right = +X. Legal movement with, across or against gravity is allowed. Space rotates clockwise within the shape's bounding rectangle with its top-left board origin fixed. There are no wall kicks or corrective translations. Invalid movement/rotation changes no state or RNG.
+
+GameMode owns a weak core ticker, monotonic **0.5-second** deadline and callback generation, separate from Ghost. Core operations contain no wall-clock/frame time. A successful manual move exactly along gravity resets the next deadline to 0.5 seconds after that move. Lateral/opposite movement, rotation and rejected input do not. Only a blocked automatic gravity attempt locks the current footprint; blocked manual movement and lateral contact do not.
+
+Due callbacks advance one cell or lock. Steady deadlines advance by 0.5 seconds. After a long stall, missed intervals are not replayed as a burst; the next deadline is 0.5 seconds after the resumed callback. Delivery occurs on an engine tick, independent of world time dilation. Restart, mode exit, EndPlay and destruction cancel/invalidate the timer. Stale callbacks cannot affect a fresh match or newer Tetris activation. Automation supplies explicit timestamps without sleeping.
+
+### Clearing and final adjudication
+
+Lock writes true block colors into legal cells, then scans the whole board with the existing `HasWinningLine` predicate. Collect all cells in same-color connected horizontal, vertical or either diagonal runs of **at least five**, then delete simultaneously. Long runs clear entirely, intersecting runs clear their union, and both colors participate. Ordinary and deposited stones are treated equally. Barrier links can split a visual run and prevent clearing. Forbidden metadata/Barrier anchors remain. No committed stones collapse; this is not traditional full-row Tetris clearing.
+
+Intermediate locks do not adjudicate ordinary wins. After opportunity six, complete any actual lock/clear, reset Tetris state, then evaluate the whole board: Black only wins, White only wins, both means Draw, neither continues. A real final lock has just cleared qualifying winning lines; trusted no-deployment fixtures exercise winner/Draw branches without inventing reachable ordinary wins. Skips perform no lock/clear. Exit never adds a normal turn switch. If continuation has no legal ordinary placement or supported card, retain `AwaitingRuleDecision / NoLegalAction`.
+
+### Development presentation and pool
+
+Slate renders all committed stones as true-color squares during Tetris and the active footprint as true-color squares with an amber outline. Forbidden marks and Barrier crosses remain visible. HUD shows TETRIS, block number out of six, operator/controlled color, edge, gravity and controls. Ordinary board/card inputs are disabled. Root `OnPreviewKeyDown` intercepts arrows/Space before focused buttons or scroll navigation can consume them; the existing UI-only controller still owns focus setup. Exit restores round stones and ordinary input immediately if play continues.
+
+The generated pool is exactly **10 cards**, uniformly with replacement: Restock, Swap Hands, Steal, Tactical Nuke, Polarity, Confusion, Barrier, Back to Basics, Ghost, Tetris. Prior behavior changes only for this authorized addition: old pool/unsupported-ID expectations and acquisition seeds are updated without weakening gameplay assertions. The existing blocking predicate, Ghost rules, Basics and Barrier topology remain unchanged. The ordinary legal-action query is shared with Tetris exit. No map, Blueprint, config, asset, module or plugin change is needed.
+
+### Agent validation and manual status
+
+Unreal **5.8.2 Win64 Development Editor build succeeded**, with MSVC 14.44 and Windows SDK 10.0.22621.0. Full Automation export: **40 passed, 0 failed, 0 test warnings, 0 skipped, 0 in progress**. Counts inspected in `Saved/Automation/Phase3C/index.json`: 9 Phase 1 + 3 Phase 2 + 9 Phase 3A + 8 Phase 3B + 11 Phase 3C. Reproduce using the earlier commands with `Automation RunTests Gomokards` and report directory `Saved/Automation/Phase3C`.
+
+`Private/Tests/TetrisTests.cpp` covers activation/effects; shapes/rotation; four-edge geometry/clearance/eligible sampling; crowded fallback/skips; absolute movement/collision; gravity/locks; six operators/full-sequence determinism; simultaneous connected clearing; final clear/evaluation/reset; pool/shape RNG/presentation key mapping; and runtime deadlines, soft drops, rejection, restart/stale callbacks, exit and teardown. All existing 29 groups remain and pass. Static review checks one authoritative state, action ordering, timer lifecycle, root keyboard routing and unchanged LocalMatch map/GameMode references. No agent gameplay or screenshot automation was performed. Generated binaries/caches/logs/reports remain ignored and excluded from the commit.
+
+**User-performed manual Tetris gameplay validation is pending**, distinct from the agent's compile, automation and static checks.
+
+### Manual Gameplay Validation Checklist — Tetris only
+
+Use the existing launch procedure with `/Game/Maps/LocalMatch?Seed=9` and at least 1100x800. Zero-based opening `(0,0)`, `(1,0)`, `(2,0)`, `(18,18)` naturally gives Black Tetris; Black acts next. White's edge-block reward occurs first. This ten-card setup is tested through runtime requests. Previous pool-specific seeds are historical; current Black opening acquisitions include Ghost seed 6, Polarity seed 4, Confusion seed 7, Barrier seed 10 and Basics seed 3. Relaunch for a repeatable seed; Restart intentionally changes it.
+
+1. **Entry/input:** cast Tetris. One card/action is consumed; White controls the first Black block. Stones become squares, the active block is outlined, and the HUD identifies operator/edge/gravity. Ordinary placement/card clicks do nothing.
+2. **Edges/controls:** across several blocks and board layouts, check available-edge spawns and Top/Down, Bottom/Up, Left/Right, Right/Left inward travel. Arrows always move in their screen directions, including against gravity. Observe roughly one automatic step per 0.5 seconds. A successful manual inward step postpones the next step; lateral/opposite moves do not.
+3. **Collision/rotation:** occupied stones and Nuke forbidden points reject overlapping movement; Barrier permits physical passage. Space rotates clockwise; obstructed/out-of-bounds rotation leaves the block unchanged. Blocked manual movement does not lock; the next blocked automatic step does. Nuke/Barrier marks remain visible.
+4. **Six blocks/effects:** verify six alternating opportunities, three per operator, controlling opposite assigned colors. Movement/rotation/locks do not advance ordinary action count/turn or remaining Confusion, and locks never earn cards. Crowded undeployable opportunities may skip immediately without a loss or extra ordinary action.
+5. **Clearing:** extend same-color horizontal/vertical/diagonal runs to 5+, including existing stones. Entire qualifying connected runs and intersecting unions disappear without collapse. A Barrier-split visual run remains when neither connected segment reaches five.
+6. **Exit/restart:** after block 6, final clearing precedes normal play; round stones and normal input return to the original caster's opponent without an extra turn. Restart while moving: empty board/hands, Black starts, no old block or timer reappears. A subsequent ordinary successful action consumes saved Confusion normally.
+
+### Accepted technical debt and unsupported scope
+
+Keep the fixed-size English development HUD, visible hands, small value state, explicit dispatch and full-board scans. Rotation has the documented fixed bounding-box origin and no kicks. Missed real-time deadlines do not cause catch-up bursts. Packaged-build validation, production UI/art/audio, score, hold, hard drop, next-piece preview, projection, animation, save/replay imports and generic mode/timer frameworks remain out of scope.
+
+Fast Duel, Ctrl+Z/Undo, Joker, advanced/double-card effects, four-player rules and networking remain unsupported. Ordinary no-legal-action adjudication retains its existing explicit decision boundary. Work stops at Phase 3C with manual Tetris validation pending.

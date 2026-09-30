@@ -205,9 +205,9 @@ bool FGhostPresentation::RunTest(const FString& Parameters)
     S.GhostPhase=EGhostPhase::Hidden; S.GhostPlacementsCompleted=2;
     TestTrue(TEXT("Hidden label reports placements, not actions"),GhostLabel(S,0).Contains(TEXT("4 placements remaining")));
     TestTrue(TEXT("Empty stays empty; every occupied identity maps to same gray"),StoneDisplayColor(S,EStone::Empty)==FLinearColor::Transparent && StoneDisplayColor(S,EStone::Black)==StoneDisplayColor(S,EStone::White));
-    TestEqual(TEXT("Exactly nine generated definitions"),GetPlayableCards().Num(),9);
+    TestEqual(TEXT("Exactly ten generated definitions"),GetPlayableCards().Num(),10);
     TestTrue(TEXT("Ghost is non-targeted playable"),FindCardDefinition(ECardId::Ghost) && !FindCardDefinition(ECardId::Ghost)->RequiresTarget());
-    for (ECardId Id : {ECardId::Tetris,ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unimplemented card remains excluded"),FindCardDefinition(Id)); }
+    for (ECardId Id : {ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unimplemented card remains excluded"),FindCardDefinition(Id)); }
     FMatchState A(32),B(32); StartHidden(A); StartHidden(B);
     A.Board.At({6,5}).Stone=B.Board.At({6,5}).Stone=EStone::Black;
     A.Board.At({7,5}).Stone=B.Board.At({7,5}).Stone=EStone::White;
@@ -226,7 +226,7 @@ bool FGhostRuntimeTest::RunTest(const FString& Parameters)
     auto Cast=[&]()
     {
         // White earns the first draw against the edge; Black earns Ghost on the second draw.
-        Owner->StartWithSeed(9);
+        Owner->StartWithSeed(6);
         for (FIntPoint P : {FIntPoint(0,0),FIntPoint(1,0),FIntPoint(2,0),FIntPoint(18,18)})
         { TestTrue(TEXT("Runtime opening accepted"),Owner->Submit(FActionRequest::Place(GhostActor(Owner->GetMatch()),P)).IsAccepted()); }
         TestTrue(TEXT("Runtime Ghost cast accepted"),Owner->Submit(FActionRequest::Play(GhostActor(Owner->GetMatch()),ECardId::Ghost)).IsAccepted());

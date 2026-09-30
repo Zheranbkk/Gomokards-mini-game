@@ -49,6 +49,8 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         Candidate.GhostPhase = EGhostPhase::Preparation;
         Candidate.GhostPlacementsCompleted = 0;
         return true; // Timer transition belongs to the runtime owner, never to the core.
+    case ECardId::Tetris:
+        return true; // Common resolver starts mode after normal action completion/turn transfer.
     case ECardId::BackToBasics:
         Candidate.bCardsDisabled = true;
         return true; // Only future card use is disabled; existing state/effects continue normally.

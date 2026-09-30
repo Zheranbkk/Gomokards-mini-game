@@ -268,10 +268,10 @@ bool FBasicsLock::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPool3,"Gomokards.Phase3A.PoolAndDeterminism",Flags)
 bool FPool3::RunTest(const FString& Parameters)
 {
-    const TArray<ECardId> Expected={ECardId::Restock,ECardId::SwapHands,ECardId::Steal,ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost};
+    const TArray<ECardId> Expected={ECardId::Restock,ECardId::SwapHands,ECardId::Steal,ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost,ECardId::Tetris};
     TArray<ECardId> Actual;
     for (const auto& Def : GetPlayableCards()) { Actual.Add(Def.Id); }
-    TestTrue(TEXT("Pool exactly the nine approved IDs, with no duplicate entries"),Actual==Expected);
+    TestTrue(TEXT("Pool exactly the ten approved IDs, with no duplicate entries"),Actual==Expected);
     TArray<ECardId> Seen;
     for (int32 Seed=0; Seed<128; ++Seed)
     {
@@ -280,11 +280,11 @@ bool FPool3::RunTest(const FString& Parameters)
         Play3(A,ECardId::Restock); Play3(B,ECardId::Restock);
         TestTrue(TEXT("Expanded pool preserves seeded equality"),A==B);
         FRandomStream ExpectedRandom(Seed);
-        const ECardId First=Expected[ExpectedRandom.RandRange(0,8)], Second=Expected[ExpectedRandom.RandRange(0,8)];
+        const ECardId First=Expected[ExpectedRandom.RandRange(0,9)], Second=Expected[ExpectedRandom.RandRange(0,9)];
         TestTrue(TEXT("Two uniform-with-replacement choices"),A.Players[0].Hand==TArray<ECardId>{First,Second});
         for (ECardId Card : A.Players[0].Hand) { TestTrue(TEXT("No unsupported draw"),Expected.Contains(Card)); Seen.AddUnique(Card); }
     }
-    TestEqual(TEXT("All nine generated in sample"),Seen.Num(),9);
+    TestEqual(TEXT("All ten generated in sample"),Seen.Num(),10);
     return true;
 }
 
@@ -337,17 +337,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManualReplay3,"Gomokards.Phase3A.ReachableManu
 bool FManualReplay3::RunTest(const FString& Parameters)
 {
     // Replay documentation setups exclusively through public actions, with naturally earned cards.
-    FMatchState Draw(7);
+    FMatchState Draw(4);
     for (FIntPoint P : {FIntPoint(0,0),FIntPoint(1,0),FIntPoint(2,0),FIntPoint(18,18)})
     { TestTrue(TEXT("Opening legal"),Place3(Draw,P).IsAccepted()); }
-    TestTrue(TEXT("Seed 7 opening earns Polarity for Black"),Draw.Players[0].Hand==TArray<ECardId>{ECardId::Polarity});
+    TestTrue(TEXT("Seed 4 opening earns Polarity for Black"),Draw.Players[0].Hand==TArray<ECardId>{ECardId::Polarity});
     for (FIntPoint P : {FIntPoint(0,2),FIntPoint(0,3),FIntPoint(1,2),FIntPoint(1,3),FIntPoint(2,2),FIntPoint(2,3),FIntPoint(3,3),FIntPoint(3,2),FIntPoint(4,3),FIntPoint(4,2)})
     { TestTrue(TEXT("Draw setup remains playable"),Place3(Draw,P).IsAccepted() && Draw.Result.Status==EMatchStatus::InProgress); }
     TestTrue(TEXT("Documented action creates reachable draw"),Play3(Draw,ECardId::Polarity,FIntPoint(3,2)).IsAccepted() && Draw.Result.Status==EMatchStatus::Draw);
     TestEqual(TEXT("Documented draw has fifteen completed actions"),Draw.CompletedActions,uint64(15));
-    FMatchState Confused(10);
+    FMatchState Confused(7);
     for (FIntPoint P : {FIntPoint(0,0),FIntPoint(1,0),FIntPoint(2,0),FIntPoint(18,18)}) { Place3(Confused,P); }
-    TestTrue(TEXT("Seed 10 naturally earns Confusion"),Play3(Confused,ECardId::Confusion).IsAccepted());
+    TestTrue(TEXT("Seed 7 naturally earns Confusion"),Play3(Confused,ECardId::Confusion).IsAccepted());
     Place3(Confused,{5,5}); Place3(Confused,{7,7}); Place3(Confused,{9,9});
     TestTrue(TEXT("Documented effective-color sequence"),Confused.Board.At({5,5}).Stone==EStone::Black && Confused.Board.At({7,7}).Stone==EStone::White && Confused.Board.At({9,9}).Stone==EStone::White && Confused.ConfusionActionsRemaining==0);
     return true;

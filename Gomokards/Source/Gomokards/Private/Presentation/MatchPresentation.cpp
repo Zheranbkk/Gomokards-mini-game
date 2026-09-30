@@ -70,6 +70,7 @@ FString CardLabel(ECardId Card)
     case ECardId::Confusion: return TEXT("Confusion (next 2 actions)");
     case ECardId::Barrier: return TEXT("Barrier (cell center)");
     case ECardId::Ghost: return TEXT("Ghost (5s memorize, 6 placements)");
+    case ECardId::Tetris: return TEXT("Tetris (6 alternating blocks)");
     case ECardId::BackToBasics: return TEXT("Back to Basics (disable cards)");
     default: return TEXT("Unavailable card");
     }
@@ -78,7 +79,9 @@ FString StoneLabel(EStone Stone) { return Stone == EStone::Black ? TEXT("Black")
 FString EffectLabel(const FMatchState& State)
 {
     const FString CardStatus = State.bCardsDisabled
-        ? TEXT("BACK TO BASICS: cards disabled until restart. Remaining cards are inert.") : State.GhostPhase != EGhostPhase::None ? TEXT("Cards temporarily unavailable during Ghost.") : TEXT("Cards enabled.");
+        ? TEXT("BACK TO BASICS: cards disabled until restart. Remaining cards are inert.") : State.Tetris.bActive ? TEXT("Cards temporarily unavailable during Tetris.") : State.GhostPhase != EGhostPhase::None ? TEXT("Cards temporarily unavailable during Ghost.") : TEXT("Cards enabled.");
+    if (State.Tetris.bActive && State.ConfusionActionsRemaining>0)
+    { return CardStatus+FString::Printf(TEXT("\nCONFUSION: %d action(s) saved for ordinary play; does not affect Tetris."),State.ConfusionActionsRemaining); }
     if (State.ConfusionActionsRemaining > 0 && State.GhostPhase == EGhostPhase::Hidden)
     { return CardStatus + FString::Printf(TEXT("\nCONFUSION: %d successful action(s) remain. Placement color hidden."),State.ConfusionActionsRemaining); }
     if (State.ConfusionActionsRemaining > 0)
@@ -100,6 +103,8 @@ FString TargetingLabel(ECardId Selected)
 }
 FString ResultLabel(const FMatchState& State)
 {
+    if (State.Tetris.bActive)
+    { return FString::Printf(TEXT("TETRIS  |  Completed actions: %llu  |  %s resumes ordinary play"),State.CompletedActions,*StoneLabel(State.Players[State.CurrentPlayerIndex].AssignedStone)); }
     if (State.Result.Status == EMatchStatus::Draw) { return TEXT("Draw: both colors have five in a row. Start a new match."); }
     if (State.Result.Status == EMatchStatus::Won) { return StoneLabel(State.Result.WinningStone) + TEXT(" wins!  Start a new match to play again."); }
     if (State.Result.Status == EMatchStatus::AwaitingRuleDecision)
@@ -110,6 +115,7 @@ FString RejectionLabel(EActionError Error)
 {
     switch (Error)
     {
+    case EActionError::TetrisActive: return TEXT("Tetris active: use arrow keys and Space; ordinary placement/cards are unavailable.");
     case EActionError::GhostPreparation: return TEXT("Ghost preparation: gameplay is frozen until the countdown ends.");
     case EActionError::GhostCardsRestricted: return TEXT("Cards cannot be played during Ghost Hidden.");
     case EActionError::CardsDisabled: return TEXT("Cards are disabled by Back to Basics until restart.");
@@ -123,5 +129,29 @@ FString RejectionLabel(EActionError Error)
     case EActionError::UnsupportedCard: return TEXT("This card is not available in this slice.");
     default: return TEXT("Action rejected; the match has not changed.");
     }
+}
+TOptional<ETetrisInput> TetrisInputForKey(const FKey& Key)
+{
+    if (Key==EKeys::Up) { return ETetrisInput::Up; }
+    if (Key==EKeys::Down) { return ETetrisInput::Down; }
+    if (Key==EKeys::Left) { return ETetrisInput::Left; }
+    if (Key==EKeys::Right) { return ETetrisInput::Right; }
+    if (Key==EKeys::SpaceBar) { return ETetrisInput::Rotate; }
+    return {};
+}
+FString TetrisLabel(const FMatchState& State)
+{
+    if (!State.Tetris.bActive) { return {}; }
+    const auto& T=State.Tetris;
+    const TCHAR* Edge=TEXT(""); const TCHAR* Gravity=TEXT("");
+    switch (T.Edge)
+    {
+    case ETetrisEdge::Top: Edge=TEXT("Top"); Gravity=TEXT("Down"); break;
+    case ETetrisEdge::Bottom: Edge=TEXT("Bottom"); Gravity=TEXT("Up"); break;
+    case ETetrisEdge::Left: Edge=TEXT("Left"); Gravity=TEXT("Right"); break;
+    case ETetrisEdge::Right: Edge=TEXT("Right"); Gravity=TEXT("Left"); break;
+    }
+    return FString::Printf(TEXT("TETRIS: block %d / 6\n%s controls %s\nSpawn: %s | Gravity: %s (0.5s)\nArrows = absolute movement | Space = clockwise rotate\nOnly blocked automatic gravity locks a block."),
+        T.BlockNumber,*StoneLabel(State.Players[T.OperatorIndex].AssignedStone),*StoneLabel(T.Stone),Edge,Gravity);
 }
 }

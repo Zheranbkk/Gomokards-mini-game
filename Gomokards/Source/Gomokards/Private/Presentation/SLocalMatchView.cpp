@@ -47,8 +47,18 @@ public:
             }
             else if (Cell.Stone != EStone::Empty)
             {
-                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), &StoneBrush,
+                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), Pinned->GetMatch().Tetris.bActive ? White : &StoneBrush,
                     ESlateDrawEffect::None, StoneDisplayColor(Pinned->GetMatch(),Cell.Stone));
+            }
+        }
+        const auto& Tetris=Pinned->GetMatch().Tetris;
+        if (Tetris.bActive)
+        {
+            for (FIntPoint Offset : TetrisOffsets(Tetris.Shape,Tetris.Rotation))
+            {
+                const FVector2D Center=FBoardLayout::Center(Tetris.Origin+Offset);
+                FSlateDrawElement::MakeBox(Out,Layer+2,G.ToPaintGeometry(FVector2D(28),FSlateLayoutTransform(Center-FVector2D(14))),White,ESlateDrawEffect::None,FLinearColor(1,.65f,0));
+                FSlateDrawElement::MakeBox(Out,Layer+3,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(Center-FVector2D(12))),White,ESlateDrawEffect::None,StoneDisplayColor(Pinned->GetMatch(),Tetris.Stone));
             }
         }
         const auto DrawBarrier = [&](FIntPoint Anchor, FLinearColor Color)
@@ -119,14 +129,14 @@ void SLocalMatchView::Construct(const FArguments& Args)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(ResultLabel(GetMatch()));}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Font(FCoreStyle::GetDefaultFontStyle("Bold",16))]
             +SVerticalBox::Slot().AutoHeight()
             [SNew(SHorizontalBox)
-                +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent).IsEnabled_Lambda([this]{return GetMatch().GhostPhase != EGhostPhase::Preparation;})
+                +SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent).IsEnabled_Lambda([this]{return GetMatch().GhostPhase != EGhostPhase::Preparation && !GetMatch().Tetris.bActive;})
                     [SAssignNew(BoardView,SMatchBoard).View(SharedThis(this))]]
                 +SHorizontalBox::Slot().FillWidth(1).Padding(20,0,0,0)
                 [SNew(SVerticalBox)
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(SButton).Text(FText::FromString(TEXT("New Match / Restart"))).OnClicked_Lambda([this]{Owner->NewMatch(); Feedback=TEXT("New match. Black starts; both hands are empty."); return FReply::Handled().SetUserFocus(SharedThis(this));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(TargetingLabel(Selection.Card));})]
+                    [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(GetMatch().Tetris.bActive ? TetrisLabel(GetMatch()) : TargetingLabel(Selection.Card));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor(.95f,.8f,.35f)).Text_Lambda([this]{return FText::FromString(EffectLabel(GetMatch()));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
@@ -189,5 +199,20 @@ FReply SLocalMatchView::CardClick(FPlayerId Player, ECardId Card)
 void SLocalMatchView::Cancel() { Selection.Clear(); BoardView->Invalidate(EInvalidateWidgetReason::Paint); Feedback=TEXT("Targeting cancelled. Match unchanged."); }
 FReply SLocalMatchView::OnKeyDown(const FGeometry& G, const FKeyEvent& E)
 { if(E.GetKey()==EKeys::Escape){Cancel(); return FReply::Handled();} return SCompoundWidget::OnKeyDown(G,E); }
+FReply SLocalMatchView::OnPreviewKeyDown(const FGeometry& G, const FKeyEvent& E)
+{
+    // Tunnel before focused buttons/scroll widgets: arrows never navigate UI and Space never clicks Restart in this mode.
+    if (GetMatch().Tetris.bActive)
+    {
+        const auto Input=TetrisInputForKey(E.GetKey());
+        if (Input.IsSet())
+        {
+            const bool bAccepted=Owner->SubmitTetris(Input.GetValue());
+            Feedback=bAccepted ? TEXT("Tetris control accepted.") : TEXT("Tetris move/rotation blocked; unchanged.");
+            return FReply::Handled().SetUserFocus(SharedThis(this));
+        }
+    }
+    return SCompoundWidget::OnPreviewKeyDown(G,E);
+}
 FReply SLocalMatchView::OnMouseButtonDown(const FGeometry& G, const FPointerEvent& E)
 { if(E.GetEffectingButton()==EKeys::RightMouseButton){Cancel();return FReply::Handled();} return SCompoundWidget::OnMouseButtonDown(G,E); }

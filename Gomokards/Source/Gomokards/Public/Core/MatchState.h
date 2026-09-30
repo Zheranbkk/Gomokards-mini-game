@@ -47,6 +47,22 @@ struct FPlayerState
 
 enum class EGhostPhase : uint8 { None, Preparation, Hidden };
 
+enum class ETetrisShape : uint8 { Square, L, Cross, Line, Z, T, Count };
+enum class ETetrisEdge : uint8 { Top, Bottom, Left, Right };
+struct FTetrisState
+{
+    static constexpr int32 BlockLimit = 6;
+    bool bActive = false;
+    int32 BlockNumber = 0; // One-based opportunity, including blocks skipped for lack of space.
+    int32 OperatorIndex = INDEX_NONE;
+    ETetrisShape Shape = ETetrisShape::Square;
+    uint8 Rotation = 0;
+    FIntPoint Origin = FIntPoint::ZeroValue;
+    ETetrisEdge Edge = ETetrisEdge::Top; // Also defines authoritative inward gravity.
+    EStone Stone = EStone::Empty;
+    bool operator==(const FTetrisState&) const = default;
+};
+
 enum class EMatchStatus : uint8 { InProgress, Won, Draw, AwaitingRuleDecision };
 enum class EDecisionReason : uint8 { None, NoLegalAction };
 
@@ -59,7 +75,7 @@ struct FMatchResult
 };
 
 // Value state owned by the caller. ResolveAction/Reset and the explicit BeginGhostHidden
-// runtime transition are the only mutation boundaries for a live match.
+// runtime transition, plus explicit Tetris operations, are the live mutation boundaries.
 // Public fields also allow explicit, UI-free test fixtures; they are not a UI write API.
 struct GOMOKARDS_API FMatchState
 {
@@ -73,6 +89,7 @@ struct GOMOKARDS_API FMatchState
     EGhostPhase GhostPhase = EGhostPhase::None;
     int32 GhostPlacementsCompleted = 0;
     static constexpr int32 GhostPlacementLimit = 6;
+    FTetrisState Tetris;
     FRandomStream Random;
 
     explicit FMatchState(int32 Seed = 0);
