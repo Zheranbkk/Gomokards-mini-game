@@ -563,7 +563,7 @@ Unreal-native checks were grounded in the installed UE 5.8 `GameStateBase.cpp` c
 
 ## Phase 4A — Two-player server-authoritative ordinary-placement slice
 
-**Implemented; automated validation passed; user manual PIE validation pending.** Based on architecture baseline `d2cfa1a447da726bdcb14e585e8570b1d2449020`. Phase 3C.1 manual acceptance on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7` remains accepted. This section supersedes the implementation/proposed wording and visibility gate in the historical impact pass above. It does not claim demonstrated PIE, LAN, Internet or dedicated-server deployment.
+**Implemented; automated validation passed; Phase 4A PIE manual validation: PASSED.** Based on architecture baseline `d2cfa1a447da726bdcb14e585e8570b1d2449020`. Phase 3C.1 manual acceptance on `3af07c4cc96eab330d8323f2bfac6bcc7ac447c7` remains accepted. This section supersedes the implementation/proposed wording and visibility gate in the historical impact pass above. The user validated two-player PIE on `3a60dfc6b1babce27ff175ce7672dcfb1081f322`; two-physical-PC LAN validation remains pending. Internet and dedicated-server deployment are not claimed.
 
 ### Implemented ownership and transport
 
@@ -609,7 +609,21 @@ The first test run exposed fixture setup errors (replication indices needed the 
 
 Static review confirms only explicit projection properties are replicated, no hand IDs are reachable through the public DTO, private hand replication is owner-only, the server derives actors and grants restart permission, and Slate has no GameMode access or both-hands debug rendering. Existing Core/Cards, all 40 prior test groups, map/config/build dependencies and assets are unchanged. Generated/cache files are excluded from the implementation commit. These are in-process authority/projection/reflection checks, **not a packet-capture test or proof of real two-process delivery**. No agent-driven gameplay was performed.
 
-### Manual PIE Validation Checklist — user pending
+### Manual PIE validation — user PASSED
+
+**Phase 4A PIE manual validation: PASSED.** The user personally completed and passed the complete two-player Listen Server + Client PIE checklist on implementation commit `3a60dfc6b1babce27ff175ce7672dcfb1081f322`, confirming:
+
+- Both Listen Server and Client created working UI; WaitingForPlayers transitioned correctly when the second player joined.
+- Black/White identity and turn ownership were correct; ordinary placements replicated consistently to both windows.
+- Wrong-turn and invalid placement requests rejected without state mutation.
+- Successful-block rewards exposed the exact card identity only to the owner; the opponent saw only the public hand-count increase.
+- Ordinary win/result synchronized; terminal actions rejected.
+- Arbitrary remote restart was unavailable/rejected; authorized Host development restart reset both views coherently, and play continued normally afterward.
+- Disconnect moved the remaining player to SessionEnded without inventing a winner.
+
+This is user-performed hands-on validation, distinct from the agent's implementation-time build and 43-test Automation results above. This README-only acceptance update runs no build or Automation tests.
+
+### Retained Manual PIE Validation Checklist — completed by the user
 
 Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, preferably separate PIE processes when checking ownership. For observing the waiting state, launch the listen server before connecting the second instance; automatic two-window startup may make it brief.
 
@@ -620,4 +634,4 @@ Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, prefera
 5. Remote development restart is disabled (server rejection is covered automatically). Use the host's development restart: both boards/hands/counts clear, Black starts, and further normal input works without stale feedback. Rapid input around restart must not add an old move.
 6. Close/disconnect one player: the remaining window shows SessionEnded, no winner is invented and placements reject. A new session is needed. If practical, repeat identity/turn/restart checks with the reversed assignment fixture; the automated suite already covers a White development host, and no client-selectable seat switch is exposed.
 
-After PIE passes, the user can perform a separate two-PC LAN direct-address validation. **Manual PIE acceptance is pending; LAN and Internet have not been demonstrated.** The implementation commit is made under this request's explicit commit/push instruction while manual validation remains pending. Phase 4B card/Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work are not implemented. No promise is made against a malicious listen-server host, who owns authoritative memory.
+**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending.** Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B card/Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work are not implemented. No promise is made against a malicious listen-server host, who owns authoritative memory.
