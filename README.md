@@ -290,6 +290,8 @@ Ghost, Tetris, Ctrl+Z/Undo, Fast Duel, Joker, advanced/double-card effects, netw
 
 ## Unreal Migration Phase 3A.1 Corrections
 
+**Historical rule record:** Phase 4B.3 below supersedes only the Basics/Confusion preservation rule: Basics now clears active Confusion while retaining all board history. Earlier tests and manual steps describing Basics taking Confusion from 2 to 1 are historical, not the current acceptance criteria.
+
 Continues from `54bec6478de6082c464efc8f565e8225071ed10b`. No cards, modes, assets or topology were added. The Phase 3A rules above are corrected to reflect the current authoritative Basics behavior; unrelated Phase 0–2 history is retained.
 
 - Barrier preview and committed rendering both call the existing `FBoardLayout::BarrierCross`. Each arm now extends **12.5% of one cell spacing** beyond its nearest grid line. This is presentation only: `RegionCorners`, `IsLinkBlocked`, the six blocked links, 18x18 anchor domain and hit conversion are unchanged.
@@ -634,7 +636,7 @@ Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, prefera
 5. Remote development restart is disabled (server rejection is covered automatically). Use the host's development restart: both boards/hands/counts clear, Black starts, and further normal input works without stale feedback. Rapid input around restart must not add an old move.
 6. Close/disconnect one player: the remaining window shows SessionEnded, no winner is invented and placements reject. A new session is needed. If practical, repeat identity/turn/restart checks with the reversed assignment fixture; the automated suite already covers a White development host, and no client-selectable seat switch is exposed.
 
-**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending until the first Development packaged build.** LAN is not a blocker for Phase 4B. Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B.1/4B.2 below add basic and targeted card networking; persistent-rule cards and Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work remain pending. No promise is made against a malicious listen-server host, who owns authoritative memory.
+**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending until the first Development packaged build.** LAN is not a blocker for Phase 4B. Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B.1/4B.2/4B.3 below add basic, targeted and persistent-rule card networking; Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work remain pending. No promise is made against a malicious listen-server host, who owns authoritative memory.
 
 
 ## Phase 4B.1 — Basic card networking
@@ -709,12 +711,12 @@ Coordinates are zero-based `(column, row)`, counted from the top-left. In each r
 4. On Black's turn, Tetris remains disabled with the later-phase explanation; clicking it changes nothing. Black places `(17,17)` normally instead.
 5. White plays **Steal**: Black becomes empty (**0**); White sees `[Ghost, Steal, Tetris]` (**3**). No public stolen-card message appears. Continue with an ordinary Black placement and confirm both boards/turns agree. Host and remote client have both played cards through the same UI path.
 
-**Phase 4B.1 user manual PIE validation: PASSED.** Physical LAN remains pending until a Development packaged build; no LAN/Internet validation is claimed or required now. Phase 4B.2 targeted-card implementation follows below; Phase 4B.3 persistent-rule cards, later Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain pending.
+**Phase 4B.1 user manual PIE validation: PASSED.** Physical LAN remains pending until a Development packaged build; no LAN/Internet validation is claimed or required now. Phase 4B.2 targeted-card and Phase 4B.3 persistent-rule implementations follow below; later Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain pending.
 
 
 ## Phase 4B.2 — Targeted board card networking
 
-**Implemented; automated validation passed; Phase 4B.2 user manual two-player PIE validation: PASSED.** Phase 4A and Phase 4B.1 user two-player PIE acceptance remain passed. This phase adds exactly **Tactical Nuke, Polarity and Barrier**. Together with Restock, Swap Hands and Steal, six cards are network-enabled. Confusion, Back to Basics, Ghost and Tetris remain visible when held but disabled for network play. The full authoritative ten-card pool/probabilities and all Core/Cards source remain unchanged.
+**Implemented; automated validation passed; Phase 4B.2 user manual two-player PIE validation: PASSED.** Phase 4A and Phase 4B.1 user two-player PIE acceptance remain passed. This section records the accepted Phase 4B.2 baseline; Phase 4B.3 below extends card availability. This phase adds exactly **Tactical Nuke, Polarity and Barrier**. Together with Restock, Swap Hands and Steal, six cards are network-enabled. Confusion, Back to Basics, Ghost and Tetris remain visible when held but disabled for network play. The full authoritative ten-card pool/probabilities and all Core/Cards source remain unchanged.
 
 ### Target intent, authority and projections
 
@@ -780,6 +782,78 @@ Coordinates are zero-based `(column, row)` from the top-left. In each row play B
 2. Reselect Polarity: hover shows a 2×2 outline. Final row/column is not a valid anchor; clicking there must leave state unchanged and show rejection (reselect afterward). Apply at top-left anchor `(5,5)`: `(5,5)` becomes White, `(6,5)` becomes Black, the two empty points remain empty. Both windows agree; turn passes to Black.
 3. Black selects Nuke and targets intersection `(6,5)`: the stone disappears and the forbidden mark appears in both windows. White attempts ordinary placement there: reject unchanged; then White places `(15,15)` normally.
 4. Black selects Barrier and clicks the **center** between intersections `(9,9)`, `(10,9)`, `(9,10)`, `(10,10)` (board-local pixel `(300,300)` at the existing layout scale). The yellow cross preview becomes the same cyan Barrier on both windows, with all stones intact; turn passes to White.
-5. White places `(16,15)` normally. Verify correct action/turn progress, own-hand consumption/public counts and continued ordinary play. Both host and remote have now used targeted cards through the same path. Confusion/Back to Basics/Ghost/Tetris, if held in other draws, must remain visible but disabled.
+5. White places `(16,15)` normally. Verify correct action/turn progress, own-hand consumption/public counts and continued ordinary play. Both host and remote have now used targeted cards through the same path. For current regression checks after Phase 4B.3, only Ghost/Tetris remain network-disabled when held; Confusion and Back to Basics are now enabled.
 
-Polarity terminal wins/draws are explicitly covered by Automation; the manual pass need not construct them artificially. **Phase 4B.2 user manual PIE validation: PASSED.** Physical two-PC LAN validation remains pending until the first Development packaged build; it is not a blocker here. Phase 4B.3 Confusion/Back to Basics networking, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. No LAN or Internet validation is claimed. The Phase 4B.2 implementation and user manual PIE acceptance are complete; no later-phase work is included.
+Polarity terminal wins/draws are explicitly covered by Automation; the manual pass need not construct them artificially. **Phase 4B.2 user manual PIE validation: PASSED.** Physical two-PC LAN validation remains pending until the first Development packaged build; it is not a blocker here. Phase 4B.3 Confusion/Back to Basics networking follows below; later Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain unimplemented. No LAN or Internet validation is claimed. The Phase 4B.2 implementation and user manual PIE acceptance are complete; no later-phase work is included.
+
+
+## Phase 4B.3 — Persistent rule-state card networking
+
+**Implemented; agent automated validation PASSED; user manual PIE validation pending.** Continues from `e68b41dc355c8b310d07be862314f8f48c906fcd`. Phase 4B.2 user two-player PIE validation remains **PASSED** on implementation `b6e1b49534e7d65025c4908a6fe88a7f1523d137`. This phase enables exactly **Confusion and Back to Basics**, bringing network-enabled cards to eight. Ghost and Tetris remain visible when held but network-disabled. The full ten-card draw pool and probabilities are unchanged.
+
+### Authoritative rules and the clarified Basics change
+
+- **Confusion remains shared, not per-player.** Activation/recast leaves two future successful action events. Both players' successful placements and card plays consume the existing counter; a placement uses the opposite of the actor's assigned stone without changing their player identity or hand ownership. Selection, hovering, cancellation and rejected actions consume nothing. Recast refreshes to two instead of stacking.
+- **Back to Basics disables future card play and clears active Confusion.** This explicit Phase 4B.3 user clarification supersedes Phase 3A.1's previous preservation rule. The minimal Core change clears the counter in `ResolveAction` after normal old-duration processing, so a pre-existing count of two becomes zero. No Confusion/Basics rule is implemented in PlayerController, GameState, Slate or the transport structs.
+- Basics consumes itself and completes/transfers one ordinary action. It preserves every board cell and flag, Nuke removals/forbidden points, Barrier anchors, committed Polarity flips, other hand entries and RNG. No rollback, new global win scan or board cleanup is added. Further card requests reject; ordinary placement and natural blocking rewards continue, with earned cards visible but inert until restart. Existing Core tests verify those distinctions.
+- Confusion is the active persistent rule counter in this slice. Ghost/Tetris mode restrictions still reject card play during their modes; this work adds no mode networking or generic effect cleanup system.
+
+### Existing intent and projection path
+
+No RPC signature or payload change. Reliable `ServerPlayCard(Epoch, ExpectedCompletedActions, CardId)` now allows exactly **Restock, Swap Hands, Steal, Confusion, Back to Basics**. `ServerPlayTargetedCard` still allows exactly **Nuke, Polarity, Barrier**. Wrong-RPC cards, Ghost/Tetris and malformed IDs reject before mutation. No player ID, effect count, card-lock value, result or RNG is accepted from a client.
+
+The existing GameMode adapter validates assignment, Playing session, epoch, completed-action token and whitelist; the server derives actor identity and sends the existing action to Core for turn/ownership/terminal/card-lock validation and atomic resolution. Both host and remote use this same owning-controller path. Full-board capability handling automatically uses the extended explicit whitelist.
+
+**No new public/private/ack fields.** Existing `ConfusionRemaining` and `bCardsDisabled` reflect committed Core state. Every accepted card updates the normal revision, public board/counts/effects and both owner-private hand projections at a matching epoch/revision. Owner-only hand replication, acknowledgement/coherence and the one-pending-intent gate are unchanged. Full match state and RNG remain server-only; public state and acknowledgements contain no hidden card identities.
+
+The existing projected-state UI enables the two newly supported cards and displays the shared count/card lock. All card buttons become disabled after Basics. Existing selection cleanup removes stale targeting when the committed lock/revision arrives, without spending an extra action. Hover previews are presentation hints; no client predicts authoritative effects or outcomes.
+
+### Agent validation and static review
+
+Unreal **5.8.2 Win64 Development Editor build succeeded**. Exported `Saved/Automation/Phase4B3/index.json` reports **48 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in progress**. All previous 47 groups remain. Existing non-target whitelist expectations are updated from three to five; only the superseded Basics/Confusion expectations change in Core tests. All other prior behavior assertions remain.
+
+New `Gomokards.Phase4B3.PersistentAuthorityAndRecipes` covers both new cards' ownership/turn/assignment/session/epoch/action-token/terminal/card-lock rejection safety; full-state/RNG/revision and projection equality on rejection; wrong targeted-RPC use; both controller assignments; exact Core parity; shared action consumption and unchanged identities for both colors; selection/cancel/invalid placement; complete board preservation after actual Nuke/Polarity/Barrier history; Basics clearing, stale-target cleanup, disabled ordinary/targeted card requests, normal placement and restart; and both fixed-seed recipes below. Existing suites retain all-byte whitelist, RPC reflection, private/public/ack field inventory and owner-only replication checks.
+
+Static review confirms no direct Slate-to-GameMode gameplay path, client-side authoritative effect calculation, duplicate persistent state, generic effect framework, new public card events, RNG replication or hidden-hand leakage. Runtime DTO layouts and replication conditions are unchanged; the three owner headers only gain test-fixture access. No assets, config, map references, dependencies, LAN/session services or generated/cache files are included. These agent checks are compiled tests and in-process authority/projection checks, not hands-on PIE, physical LAN or a network packet capture. No agent gameplay was performed.
+
+### Deterministic Manual PIE Validation Checklist — user pending
+
+Use `/Game/Maps/LocalMatch`, two players, **Play As Listen Server**, with the existing authoritative seed override. For each recipe start a fresh PIE session using its seed, for example:
+
+```text
+UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=182"
+```
+
+Use `5211` instead of `182` for recipe B. Do not press development Restart during a recipe, since it chooses a new seed. Stop/start PIE to repeat. No hand injection, cheat RPC or grant mechanism was added. Both recipes were verified by Automation through the production server adapter.
+
+Coordinates are zero-based from the top-left. Each row is Black then White. **Recipe A uses rows 1–6 (12 placements); recipe B uses all eight rows (16 placements).**
+
+| Pair | Black | White |
+| --- | --- | --- |
+| 1 | `(5,5)` | `(6,5)` |
+| 2 | `(0,0)` | `(7,5)` |
+| 3 | `(8,5)` | `(1,0)` |
+| 4 | `(9,9)` | `(10,9)` |
+| 5 | `(12,12)` | `(11,9)` |
+| 6 | `(12,9)` | `(5,12)` |
+| 7 | `(6,12)` | `(0,18)` |
+| 8 | `(7,12)` | `(8,12)` |
+
+**A — Shared Confusion consumption, seed 182:**
+
+1. After 12 placements Black has `[Confusion, Restock]`; White has `[Ghost]`. Each window shows only its own identities and the opponent's hand count. Ghost remains disabled.
+2. Black plays Confusion. Both windows show **2**, White to act; player identity labels do not swap. An occupied-cell click must leave board/count/turn unchanged.
+3. White places `(15,15)`: a **Black** stone appears identically in both windows, count **2 → 1**, while White retains White identity.
+4. Black plays Restock: own hand refreshes, opponent sees only its count; shared Confusion **1 → 0**. White places `(17,17)`: normal **White** stone. Ordinary play continues.
+
+**B — Basics clears rules but preserves history, seed 5211:**
+
+1. After 16 placements Black has `[Tactical Nuke, Back to Basics]`; White has `[Barrier, Confusion]`.
+2. Black Nukes intersection `(6,5)`: its stone disappears and the forbidden mark agrees in both windows. White selects Barrier; cancel/reselect/Escape/right-click must spend nothing, then click the cell center between `(9,9)` and `(10,10)` to place it. Both windows retain the surrounding stones and display the same Barrier.
+3. Black places `(15,15)` normally. White plays Confusion: both show **2**.
+4. Black plays Back to Basics: both show **Basics on / Confusion 0**; the forbidden point, removed stone, Barrier and all other stones remain unchanged. The normal turn passes once to White.
+5. White places `(8,9)`: a normal **White** stone earns a new Confusion from blocking. Black places `(17,17)`. On White's turn that Confusion is visible but disabled; clicking it changes nothing. Server-side crafted card rejection is covered automatically. Ordinary placement remains available.
+
+Also repeat the retained Phase 4B.1 `5751` and Phase 4B.2 `1294` recipes as a regression check for Restock/Swap/Steal and Nuke/Polarity/Barrier, including targeting and continued placement. Ghost/Tetris, whenever held, remain visible but network-disabled. Automation covers retained Polarity history and terminal outcomes without requiring additional engineered manual fixtures.
+
+**Phase 4B.3 user manual PIE validation remains pending.** The user performs this checklist; the explicit implementation request authorizes this focused commit/push after agent validation. Physical two-PC LAN validation remains pending until the first Development packaged build. Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain unimplemented. No LAN/Internet validation or malicious-host confidentiality is claimed. Stop at Phase 4B.3.

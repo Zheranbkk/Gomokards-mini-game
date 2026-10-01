@@ -49,6 +49,7 @@ private:
     friend class FMatchNetworkTest;
     friend class FBasicCardNetworkTest;
     friend class FTargetedCardNetworkTest;
+    friend class FPersistentCardNetworkTest;
     void ScheduleGhostPreparation();
     void CancelGhostPreparation();
     bool PollGhostPreparation(double Now, uint64 Generation);

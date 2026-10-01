@@ -92,7 +92,7 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
     TestEqual(TEXT("Second affected action can be a card and expires"),S.ConfusionActionsRemaining,0);
     Place3(S,{2,2});
     TestTrue(TEXT("Following placement is assigned color again"),S.Board.At({2,2}).Stone==EStone::White);
-    // Every successful card type consumes old duration; only Confusion itself refreshes it.
+    // Every successful card consumes old duration; Confusion refreshes it and Basics clears it.
     for (const auto& Definition : GetPlayableCards())
     {
         FMatchState CardState(7);
@@ -100,8 +100,8 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
         CardState.Players[0].Hand={Definition.Id};
         const auto R=Play3(CardState,Definition.Id,Definition.RequiresTarget() ? TOptional<FIntPoint>({5,5}) : TOptional<FIntPoint>{});
         TestTrue(TEXT("All current card types complete successfully under Confusion"),R.IsAccepted());
-        TestEqual(TEXT("Old duration consumed; only recast refreshes"),CardState.ConfusionActionsRemaining,
-            Definition.Id==ECardId::Confusion ? 2 : 1);
+        TestEqual(TEXT("Old duration consumed, recast refreshes, Basics clears"),CardState.ConfusionActionsRemaining,
+            Definition.Id==ECardId::Confusion ? 2 : (Definition.Id==ECardId::BackToBasics ? 0 : 1));
         TestEqual(TEXT("Card action completes once"),CardState.CompletedActions,uint64(1));
     }
     FMatchState Recast;
@@ -208,7 +208,7 @@ bool FBasicsLock::RunTest(const FString& Parameters)
     const auto R=Play3(S,ECardId::BackToBasics);
     TestTrue(TEXT("Basics succeeds without reward"),R.IsAccepted() && !R.bBlockingReward);
     TestTrue(TEXT("Lock enabled; all board cells, flags and barriers preserved"),S.bCardsDisabled && S.Board==Before);
-    TestEqual(TEXT("Basics naturally consumes one old Confusion action"),S.ConfusionActionsRemaining,1);
+    TestEqual(TEXT("Basics clears active Confusion"),S.ConfusionActionsRemaining,0);
     TestTrue(TEXT("Actual Nuke removal and Polarity flip not undone"),S.Board.At({1,1})==FCell{EStone::Empty,true} && S.Board.At({5,5}).Stone==EStone::Black);
     TestTrue(TEXT("Unused hands retained; only Basics consumed"),S.Players[0].Hand==TArray<ECardId>{ECardId::Restock} && S.Players[1].Hand==TArray<ECardId>{ECardId::Steal});
     TestTrue(TEXT("Exactly one completion/transfer for Basics"),S.CompletedActions==5 && S.CurrentPlayerIndex==1);
@@ -217,8 +217,8 @@ bool FBasicsLock::RunTest(const FString& Parameters)
     { Reject3(*this,S,FActionRequest::Play(Current3(S),Def.Id),EActionError::CardsDisabled); }
     Reject3(*this,S,FActionRequest::Place(Current3(S),{1,1}),EActionError::Forbidden);
     Reject3(*this,S,FActionRequest::Place(Current3(S),{5,5}),EActionError::Occupied);
-    TestTrue(TEXT("Next valid placement is still confused after cards disabled"),Place3(S,{8,7}).IsAccepted() && S.Board.At({8,7}).Stone==EStone::Black);
-    TestEqual(TEXT("Remaining Confusion naturally expires on placement"),S.ConfusionActionsRemaining,0);
+    TestTrue(TEXT("Next valid placement uses assigned color after Basics clears Confusion"),Place3(S,{8,7}).IsAccepted() && S.Board.At({8,7}).Stone==EStone::White);
+    TestEqual(TEXT("Cleared Confusion stays zero on placement"),S.ConfusionActionsRemaining,0);
     TestTrue(TEXT("Following placement uses normal assigned color"),Place3(S,{9,7}).IsAccepted() && S.Board.At({9,7}).Stone==EStone::Black);
     S.Reset(65);
     TestTrue(TEXT("Restart clears entire state and card lock"),S==FMatchState(65));

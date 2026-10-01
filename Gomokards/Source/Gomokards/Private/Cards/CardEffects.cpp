@@ -53,7 +53,7 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         return true; // Common resolver starts mode after normal action completion/turn transfer.
     case ECardId::BackToBasics:
         Candidate.bCardsDisabled = true;
-        return true; // Only future card use is disabled; existing state/effects continue normally.
+        return true; // Board history is preserved; the common resolver clears active Confusion.
     default:
         return false;
     }

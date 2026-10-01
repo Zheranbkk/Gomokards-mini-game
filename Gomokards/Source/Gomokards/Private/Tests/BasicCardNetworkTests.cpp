@@ -26,12 +26,12 @@ bool FBasicCardContractTest::RunTest(const FString&)
     TestNotNull(TEXT("Card byte safely represents malformed enum input for adapter rejection"),FindFProperty<FByteProperty>(RPC,TEXT("CardId")));
     for (int32 I=0; I<=255; ++I)
     {
-        const bool Expected=I==uint8(ECardId::Restock) || I==uint8(ECardId::SwapHands) || I==uint8(ECardId::Steal);
-        TestEqual(TEXT("Whitelist exactly three, including every malformed byte"),IsNetworkCardEnabled(uint8(I)),Expected);
+        const bool Expected=I==uint8(ECardId::Restock) || I==uint8(ECardId::SwapHands) || I==uint8(ECardId::Steal) || I==uint8(ECardId::Confusion) || I==uint8(ECardId::BackToBasics);
+        TestEqual(TEXT("Non-targeted whitelist exactly five, including every malformed byte"),IsNetworkCardEnabled(uint8(I)),Expected);
     }
     TestEqual(TEXT("Authoritative pool remains all ten cards"),GetPlayableCards().Num(),10);
     for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost,ECardId::Tetris})
-    { TestNotNull(TEXT("Later-phase cards still supported by Core"),FindCardDefinition(Card)); }
+    { TestNotNull(TEXT("Other existing cards still supported by Core"),FindCardDefinition(Card)); }
     // The Phase 4A reflected privacy tests continue to assert the exact public/private/ack field inventories.
     return true;
 }
@@ -102,7 +102,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
         Reject(A,GM->MatchEpoch,0,uint8(Card),EMatchIntentError::NotPlaying);
     }
     Reset();
-    for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost,ECardId::Tetris,
+    for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Barrier,ECardId::Ghost,ECardId::Tetris,
         ECardId::Invalid,ECardId::FastDuel,ECardId::Undo,ECardId::Joker,static_cast<ECardId>(255)})
     {
         GM->Match.Players[0].Hand={Card}; GM->PublishViews();

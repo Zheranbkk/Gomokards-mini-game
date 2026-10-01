@@ -107,7 +107,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.2"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.3"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
             +SVerticalBox::Slot().AutoHeight()
@@ -122,7 +122,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
                         .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Restock, Swap Hands, Steal, Nuke, Polarity and Barrier are playable. Other cards await a later phase.\nOnly your card contents are shown. Both hand counts are public.")))]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Eight cards are playable, including Confusion and Back to Basics. Ghost and Tetris await a later phase.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
