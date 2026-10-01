@@ -714,7 +714,7 @@ Coordinates are zero-based `(column, row)`, counted from the top-left. In each r
 
 ## Phase 4B.2 — Targeted board card networking
 
-**Implemented; automated validation passed; Phase 4B.2 user manual PIE validation pending.** Phase 4A and Phase 4B.1 user two-player PIE acceptance remain passed. This phase adds exactly **Tactical Nuke, Polarity and Barrier**. Together with Restock, Swap Hands and Steal, six cards are network-enabled. Confusion, Back to Basics, Ghost and Tetris remain visible when held but disabled for network play. The full authoritative ten-card pool/probabilities and all Core/Cards source remain unchanged.
+**Implemented; automated validation passed; Phase 4B.2 user manual two-player PIE validation: PASSED.** Phase 4A and Phase 4B.1 user two-player PIE acceptance remain passed. This phase adds exactly **Tactical Nuke, Polarity and Barrier**. Together with Restock, Swap Hands and Steal, six cards are network-enabled. Confusion, Back to Basics, Ghost and Tetris remain visible when held but disabled for network play. The full authoritative ten-card pool/probabilities and all Core/Cards source remain unchanged.
 
 ### Target intent, authority and projections
 
@@ -751,7 +751,11 @@ The first UI-routing test run exposed that the transient test world had not begu
 
 Static review: public/private/ack reflected field inventories and owner-only replication remain unchanged and pass the existing privacy tests; no authoritative match/RNG is replicated; no client actor ID/raw pixels enter the target RPC; no effects are duplicated in GameState/Slate; no both-hand HUD, extra client RNG, OnlineSubsystem, new service, map, asset or config change was added. GameState's only change grants the new Automation fixture access. Generated/cache files are excluded. No protection against a malicious authority host is claimed.
 
-### Deterministic Manual PIE Validation Checklist — user pending
+### Phase 4B.2 user manual PIE validation — PASSED
+
+The user reports that Phase 4B.2 two-player PIE gameplay validation is completed and all functionality works correctly on implementation commit `b6e1b49534e7d65025c4908a6fe88a7f1523d137`. This user-performed hands-on acceptance is separate from the agent Development Editor build and 47-test Automation result above. The deterministic checklist below is retained for regression checks. Physical two-PC LAN validation remains pending until the first Development packaged build; no Internet validation or malicious-host confidentiality is claimed.
+
+### Retained Deterministic Manual PIE Validation Checklist
 
 First confirm the accepted ordinary/basic-card behavior still works in two-player Listen Server + Client PIE; the retained `5751` recipe above remains available. For targeted cards, start a fresh session with **`?Seed=1294`** using the same existing seed mechanism. For in-editor PIE, launch Editor with:
 
@@ -759,7 +763,7 @@ First confirm the accepted ordinary/basic-card behavior still works in two-playe
 UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=1294"
 ```
 
-Use `/Game/Maps/LocalMatch`, two players, Play As Listen Server. Do not use the development Restart button during setup because it chooses a new seed; stop/start PIE to repeat. No hand injection, cheat RPC or grant mechanism exists. The seed/opening/effects are verified through the server adapter by Automation; user hands-on validation remains pending.
+Use `/Game/Maps/LocalMatch`, two players, Play As Listen Server. Do not use the development Restart button during setup because it chooses a new seed; stop/start PIE to repeat. No hand injection, cheat RPC or grant mechanism exists. The seed/opening/effects are verified through the server adapter by Automation; user hands-on Phase 4B.2 PIE validation has also passed, as recorded above.
 
 Coordinates are zero-based `(column, row)` from the top-left. In each row play Black first, then White; the last row has only Black's move:
 
@@ -778,4 +782,4 @@ Coordinates are zero-based `(column, row)` from the top-left. In each row play B
 4. Black selects Barrier and clicks the **center** between intersections `(9,9)`, `(10,9)`, `(9,10)`, `(10,10)` (board-local pixel `(300,300)` at the existing layout scale). The yellow cross preview becomes the same cyan Barrier on both windows, with all stones intact; turn passes to White.
 5. White places `(16,15)` normally. Verify correct action/turn progress, own-hand consumption/public counts and continued ordinary play. Both host and remote have now used targeted cards through the same path. Confusion/Back to Basics/Ghost/Tetris, if held in other draws, must remain visible but disabled.
 
-Polarity terminal wins/draws are explicitly covered by Automation; the manual pass need not construct them artificially. **Phase 4B.2 manual PIE validation remains pending.** Physical two-PC LAN validation remains pending until the first Development packaged build; it is not a blocker here. Phase 4B.3 Confusion/Back to Basics networking, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. No LAN or Internet validation is claimed. This focused commit follows the explicit request to commit/push with the manual checklist handed to the user.
+Polarity terminal wins/draws are explicitly covered by Automation; the manual pass need not construct them artificially. **Phase 4B.2 user manual PIE validation: PASSED.** Physical two-PC LAN validation remains pending until the first Development packaged build; it is not a blocker here. Phase 4B.3 Confusion/Back to Basics networking, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. No LAN or Internet validation is claimed. The Phase 4B.2 implementation and user manual PIE acceptance are complete; no later-phase work is included.
