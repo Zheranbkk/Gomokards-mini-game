@@ -12,6 +12,10 @@ public:
     void Construct(const FArguments& Args);
     virtual ~SLocalMatchView() override;
     virtual bool SupportsKeyboardFocus() const override { return true; }
+    virtual FReply OnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
+    virtual FReply OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event) override;
+    uint8 SelectedCard() const;
+    void CancelTargeting();
     void Refresh();
     void BoardClick(FIntPoint Coordinate);
     bool CanPlace(FIntPoint Coordinate) const;

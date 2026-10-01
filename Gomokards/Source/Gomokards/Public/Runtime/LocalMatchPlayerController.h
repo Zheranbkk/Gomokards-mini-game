@@ -19,6 +19,12 @@ public:
     bool CanPlace(FIntPoint Point) const;
     bool CanPlayCard(uint8 CardId) const;
     void RequestCard(uint8 CardId);
+    bool CanTargetCard(uint8 CardId) const;
+    uint8 GetSelectedTargetedCard() const { return SelectedTargetedCard; }
+    void ToggleTargeting(uint8 CardId);
+    void CancelTargeting();
+    void RequestBoardClick(FIntPoint Point);
+    void RequestTargetedCard(uint8 CardId, FIntPoint Target);
     bool CanDevelopmentRestart() const;
     void RequestPlace(FIntPoint Point);
     void RequestDevelopmentRestart();
@@ -28,6 +34,7 @@ public:
 
     UFUNCTION(Server, Reliable) void ServerPlaceStone(uint64 Epoch, uint64 ExpectedCompletedActions, int32 X, int32 Y);
     UFUNCTION(Server, Reliable) void ServerPlayCard(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId);
+    UFUNCTION(Server, Reliable) void ServerPlayTargetedCard(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId, int32 TargetX, int32 TargetY);
     UFUNCTION(Server, Reliable) void ServerDevelopmentRestart(uint64 Epoch);
     UFUNCTION(Client, Reliable) void ClientActionResult(FMatchActionAck Ack);
 protected:
@@ -39,6 +46,7 @@ private:
     void PublishPrivate(const FMatchPrivateView& View);
     FMatchPublicView DisplayPublic;
     FMatchPrivateView DisplayPrivate;
+    uint8 SelectedTargetedCard = 0; // Local presentation only: no stored player identity.
     bool bCoherent = false;
     bool bPending = false;
     TOptional<FMatchActionAck> PendingAck;
@@ -47,4 +55,5 @@ private:
     friend class ALocalMatchGameMode;
     friend class FMatchNetworkTest;
     friend class FBasicCardNetworkTest;
+    friend class FTargetedCardNetworkTest;
 };

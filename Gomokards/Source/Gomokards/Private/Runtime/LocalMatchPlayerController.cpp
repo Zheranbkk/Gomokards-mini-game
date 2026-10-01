@@ -45,6 +45,7 @@ void ALocalMatchPlayerController::OnRep_PrivateView() { RefreshPresentation(); }
 void ALocalMatchPlayerController::RefreshPresentation()
 {
     const auto* GS=GetWorld() ? GetWorld()->GetGameState<ALocalMatchGameState>() : nullptr;
+    const uint64 PreviousEpoch=DisplayPublic.Epoch, PreviousRevision=DisplayPublic.Revision;
     bCoherent=false;
     if (GS)
     {
@@ -81,6 +82,8 @@ void ALocalMatchPlayerController::RefreshPresentation()
             }
         }
     }
+    if (PreviousEpoch!=DisplayPublic.Epoch || PreviousRevision!=DisplayPublic.Revision || !CanTargetCard(SelectedTargetedCard))
+    { SelectedTargetedCard=0; }
     OnPresentationChanged.Broadcast();
 }
 bool ALocalMatchPlayerController::IsPresentationReady() const
@@ -101,8 +104,43 @@ bool ALocalMatchPlayerController::CanPlayCard(uint8 CardId) const
 void ALocalMatchPlayerController::RequestCard(uint8 CardId)
 {
     if (!IsPresentationReady() || bPending) { return; }
+    SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlayCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId);
+    OnPresentationChanged.Broadcast();
+}
+bool ALocalMatchPlayerController::CanTargetCard(uint8 CardId) const
+{
+    return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
+        !DisplayPublic.bCardsDisabled && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        IsTargetedNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
+}
+void ALocalMatchPlayerController::ToggleTargeting(uint8 CardId)
+{
+    if (SelectedTargetedCard==CardId) { CancelTargeting(); return; }
+    if (!CanTargetCard(CardId)) { return; }
+    SelectedTargetedCard=CardId;
+    Feedback=TEXT("Target selected locally. Choose a board target, or cancel without spending an action.");
+    OnPresentationChanged.Broadcast();
+}
+void ALocalMatchPlayerController::CancelTargeting()
+{
+    if (SelectedTargetedCard==0) { return; }
+    SelectedTargetedCard=0;
+    Feedback=TEXT("Targeting cancelled. No action spent.");
+    OnPresentationChanged.Broadcast();
+}
+void ALocalMatchPlayerController::RequestBoardClick(FIntPoint Point)
+{
+    if (SelectedTargetedCard!=0) { RequestTargetedCard(SelectedTargetedCard,Point); }
+    else { RequestPlace(Point); }
+}
+void ALocalMatchPlayerController::RequestTargetedCard(uint8 CardId, FIntPoint Target)
+{
+    if (!IsPresentationReady() || bPending) { return; }
+    SelectedTargetedCard=0; // Rejection can be retried by selecting the card again.
+    bPending=true; Feedback=TEXT("Waiting for server...");
+    ServerPlayTargetedCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId,Target.X,Target.Y);
     OnPresentationChanged.Broadcast();
 }
 bool ALocalMatchPlayerController::CanDevelopmentRestart() const
@@ -111,6 +149,7 @@ void ALocalMatchPlayerController::RequestPlace(FIntPoint Point)
 {
     // Let the server explain wrong-turn/invalid-cell requests; only coherence and outstanding intent gate delivery.
     if (!IsPresentationReady() || bPending) { return; }
+    SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlaceStone(DisplayPublic.Epoch,DisplayPublic.CompletedActions,Point.X,Point.Y);
     OnPresentationChanged.Broadcast();
@@ -118,6 +157,7 @@ void ALocalMatchPlayerController::RequestPlace(FIntPoint Point)
 void ALocalMatchPlayerController::RequestDevelopmentRestart()
 {
     if (!CanDevelopmentRestart()) { return; }
+    SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for development restart...");
     ServerDevelopmentRestart(DisplayPublic.Epoch);
     OnPresentationChanged.Broadcast();
@@ -131,6 +171,11 @@ void ALocalMatchPlayerController::ServerPlayCard_Implementation(uint64 Epoch, ui
 {
     if (auto* MatchOwner=GetWorld()->GetAuthGameMode<ALocalMatchGameMode>())
     { ClientActionResult(MatchOwner->CardFrom(this,Epoch,ExpectedCompletedActions,CardId)); }
+}
+void ALocalMatchPlayerController::ServerPlayTargetedCard_Implementation(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId, int32 TargetX, int32 TargetY)
+{
+    if (auto* MatchOwner=GetWorld()->GetAuthGameMode<ALocalMatchGameMode>())
+    { ClientActionResult(MatchOwner->TargetedCardFrom(this,Epoch,ExpectedCompletedActions,CardId,{TargetX,TargetY})); }
 }
 void ALocalMatchPlayerController::ServerDevelopmentRestart_Implementation(uint64 Epoch)
 {

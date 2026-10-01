@@ -59,8 +59,21 @@ public:
             FSlateDrawElement::MakeLines(Out, Layer+4, G.ToPaintGeometry(), TArray<FVector2D>{Ends[2],Ends[3]}, ESlateDrawEffect::None, Color, true, 3);
         };
         for (FIntPoint Anchor : Board.Barriers) { DrawBarrier(Anchor, FLinearColor(0,.8f,1)); }
-        const auto Target=Hover.IsSet() ? FBoardLayout::ToCoordinate(Hover.GetValue()) : TOptional<FIntPoint>{};
-        if (Target.IsSet() && Pinned->CanPlace(Target.GetValue()))
+        const auto Card=static_cast<ECardId>(Pinned->SelectedCard());
+        const auto Target=Hover.IsSet() ? FBoardLayout::TargetAt(Hover.GetValue(),Card) : TOptional<FIntPoint>{};
+        if (Target.IsSet() && IsTargetedNetworkCardEnabled(uint8(Card)))
+        {
+            if (Card==ECardId::Barrier) { DrawBarrier(Target.GetValue(),FLinearColor::Yellow); }
+            else
+            {
+                const FVector2D First=FBoardLayout::Center(Target.GetValue())-FVector2D(14);
+                const FIntPoint LastPoint=Card==ECardId::Polarity ? FBoard::RegionCorners(Target.GetValue())[3] : Target.GetValue();
+                const FVector2D Last=FBoardLayout::Center(LastPoint)+FVector2D(14);
+                FSlateDrawElement::MakeLines(Out,Layer+5,G.ToPaintGeometry(),{First,{Last.X,First.Y},Last,{First.X,Last.Y},First},
+                    ESlateDrawEffect::None,FLinearColor::Yellow,true,2);
+            }
+        }
+        else if (Target.IsSet() && Pinned->SelectedCard()==0 && Pinned->CanPlace(Target.GetValue()))
         {
             FLinearColor Preview=Pinned->PreviewStone()==1 ? FLinearColor(.04f,.04f,.05f,.35f) : FLinearColor(.94f,.94f,.9f,.35f);
             FSlateDrawElement::MakeBox(Out,Layer+5,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
@@ -74,9 +87,10 @@ public:
     virtual FReply OnMouseButtonDown(const FGeometry& G, const FPointerEvent& E) override
     {
         const auto Pinned = View.Pin(); if (!Pinned) { return FReply::Unhandled(); }
-        if (E.GetEffectingButton() == EKeys::LeftMouseButton)
+        if (E.GetEffectingButton()==EKeys::RightMouseButton) { Pinned->CancelTargeting(); }
+        else if (E.GetEffectingButton() == EKeys::LeftMouseButton)
         {
-            const auto Coordinate = FBoardLayout::ToCoordinate(G.AbsoluteToLocal(E.GetScreenSpacePosition()));
+            const auto Coordinate = FBoardLayout::TargetAt(G.AbsoluteToLocal(E.GetScreenSpacePosition()),static_cast<ECardId>(Pinned->SelectedCard()));
             Pinned->BoardClick(Coordinate.Get(FIntPoint(-1,-1)));
         }
         return FReply::Handled().SetUserFocus(Pinned.ToSharedRef());
@@ -93,7 +107,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.1"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.2"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
             +SVerticalBox::Slot().AutoHeight()
@@ -108,9 +122,12 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
                         .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Restock, Swap Hands and Steal are playable. Other cards await a later networking phase.\nOnly your card contents are shown. Both hand counts are public.")))]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Restock, Swap Hands, Steal, Nuke, Polarity and Barrier are playable. Other cards await a later phase.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
+                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
+                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor::Yellow)
+                        .Text_Lambda([this]{return FText::FromString(TargetingLabel(static_cast<ECardId>(SelectedCard())));})]
                     +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
                 ]]
             +SVerticalBox::Slot().AutoHeight().Padding(0,12,0,0)
@@ -146,9 +163,26 @@ void SLocalMatchView::Refresh()
     {
         Hands->AddSlot().AutoHeight().Padding(0,2)
             [SNew(SButton)
-                .IsEnabled_Lambda([this,Card]{return Owner->CanPlayCard(Card);})
-                .Text(FText::FromString(CardLabel(static_cast<ECardId>(Card)) + (IsNetworkCardEnabled(Card) ? TEXT("") : TEXT(" — networking not enabled yet"))))
-                .OnClicked_Lambda([this,Card]{Owner->RequestCard(Card);return FReply::Handled();})];
+                .IsEnabled_Lambda([this,Card]{return Owner->CanPlayCard(Card) || Owner->CanTargetCard(Card);})
+                .Text(FText::FromString(CardLabel(static_cast<ECardId>(Card)) + ((IsNetworkCardEnabled(Card) || IsTargetedNetworkCardEnabled(Card)) ? TEXT("") : TEXT(" — networking not enabled yet"))))
+                .OnClicked_Lambda([this,Card]
+                {
+                    if (IsTargetedNetworkCardEnabled(Card)) { Owner->ToggleTargeting(Card); }
+                    else { Owner->RequestCard(Card); }
+                    return FReply::Handled().SetUserFocus(SharedThis(this));
+                })];
     }
 }
-void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestPlace(Coordinate); }
+uint8 SLocalMatchView::SelectedCard() const { return Owner->GetSelectedTargetedCard(); }
+void SLocalMatchView::CancelTargeting() { Owner->CancelTargeting(); }
+void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestBoardClick(Coordinate); }
+FReply SLocalMatchView::OnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
+{
+    if (Event.GetKey()==EKeys::Escape) { CancelTargeting(); return FReply::Handled(); }
+    return SCompoundWidget::OnPreviewKeyDown(Geometry,Event);
+}
+FReply SLocalMatchView::OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event)
+{
+    if (Event.GetEffectingButton()==EKeys::RightMouseButton) { CancelTargeting(); return FReply::Handled(); }
+    return SCompoundWidget::OnMouseButtonDown(Geometry,Event);
+}

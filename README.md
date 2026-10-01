@@ -634,14 +634,14 @@ Use `/Game/Maps/LocalMatch`, two PIE players, **Play As Listen Server**, prefera
 5. Remote development restart is disabled (server rejection is covered automatically). Use the host's development restart: both boards/hands/counts clear, Black starts, and further normal input works without stale feedback. Rapid input around restart must not add an old move.
 6. Close/disconnect one player: the remaining window shows SessionEnded, no winner is invented and placements reject. A new session is needed. If practical, repeat identity/turn/restart checks with the reversed assignment fixture; the automated suite already covers a White development host, and no client-selectable seat switch is exposed.
 
-**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending until the first Development packaged build.** LAN is not a blocker for Phase 4B. Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B.1 below adds only basic card networking; targeted/persistent cards, Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work remain pending. No promise is made against a malicious listen-server host, who owns authoritative memory.
+**Phase 4A PIE manual validation has passed; two-physical-PC LAN validation remains explicitly pending until the first Development packaged build.** LAN is not a blocker for Phase 4B. Internet multiplayer has not been demonstrated. The PIE acceptance does not establish LAN or Internet validation. Phase 4B.1/4B.2 below add basic and targeted card networking; persistent-rule cards and Ghost/Tetris networking (including Ghost redaction and mode clock/pose transport) and Phase 4C Internet/session-provider work remain pending. No promise is made against a malicious listen-server host, who owns authoritative memory.
 
 
 ## Phase 4B.1 — Basic card networking
 
-**Implemented; automated validation passed; user manual PIE validation pending.** Built on accepted Phase 4A implementation `3a60dfc6b1babce27ff175ce7672dcfb1081f322` and its user PIE acceptance record `28bb4a96289dd2443f403ed1555aaffa4a9cbeff`. Phase 4A manual acceptance remains passed. Physical two-PC LAN validation is intentionally pending until the first Development packaged build, not a prerequisite for this phase.
+**Implemented; automated validation passed; Phase 4B.1 user manual two-player PIE validation: PASSED.** Built on accepted Phase 4A implementation `3a60dfc6b1babce27ff175ce7672dcfb1081f322` and its user PIE acceptance record `28bb4a96289dd2443f403ed1555aaffa4a9cbeff`. Phase 4A manual acceptance remains passed. Physical two-PC LAN validation is intentionally pending until the first Development packaged build, not a prerequisite for this phase.
 
-Only **Restock, Swap Hands and Steal** are now network-playable. The existing authoritative **ten-card draw pool and probabilities are unchanged**. Tactical Nuke, Polarity, Confusion, Barrier, Back to Basics, Ghost and Tetris can still be earned/drawn and appear by their real names in the owner's hand, but remain disabled with “networking not enabled yet.” No targeting or mode transport was added.
+This section records the accepted Phase 4B.1 baseline; Phase 4B.2 below extends its capability restrictions. At this baseline, only **Restock, Swap Hands and Steal** were network-playable. The existing authoritative **ten-card draw pool and probabilities are unchanged**. Tactical Nuke, Polarity, Confusion, Barrier, Back to Basics, Ghost and Tetris can still be earned/drawn and appear by their real names in the owner's hand, but remain disabled with “networking not enabled yet.” No targeting or mode transport was added.
 
 ### Server path and exact card behavior
 
@@ -674,7 +674,11 @@ Unreal **5.8.2 Win64 Development Editor build succeeded**. Exported `Saved/Autom
 
 Static/reflection review confirms the Phase 4A public/private/ack reflected field inventories and owner-only replication conditions still pass, no `FMatchState`/RNG or card identity array was added to GameState/acknowledgements, both private projections rebuild on each commit, and Slate has no GameMode/full-state resolution path. The only GameState header change grants access to the new Automation fixture. No generated/cache files are included. Startup file-journal/editor-layout warnings are outside Automation test results. These checks are in-process authority/projection tests and compiled reflection inspection, not new real-client gameplay or packet capture. No agent-driven gameplay was performed.
 
-### Manual PIE Validation Checklist — user pending
+### Phase 4B.1 user manual PIE validation — PASSED
+
+The user reports that two-player PIE manual validation of Phase 4B.1 is **completed and PASSED**, on the latest accepted implementation `e72ddfa62bbf6007e7c8285b562ddf824ab32965`. This is user-performed gameplay validation, distinct from the implementation-time agent build and 45-test Automation result above. The acceptance is recorded with Phase 4B.2, without a separate documentation commit. Physical two-PC LAN validation remains pending until the first Development packaged build.
+
+### Retained Phase 4B.1 Manual PIE Validation Checklist
 
 Use two players, Listen Server + Client, on `/Game/Maps/LocalMatch`. Confirm ordinary placement still works and each window shows only its own exact hand plus both public counts. Test all three cards on their owners' turns; verify both owners can use eligible cards, subsequent ordinary play works, and later-phase cards stay visibly disabled without changing the match. Wrong-turn/absent-card/stale/crafted unsupported RPC rejection is covered automatically; there is no user-facing spoof control.
 
@@ -684,7 +688,7 @@ For reproducible hands without waiting for random rewards, reuse the existing se
 UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=5751"
 ```
 
-The installed UE 5.8 `BuildPlayWorldURL` appends `InEditorGameURLOptions` to the PIE map URL. Alternatively, when launching the listen server as a new editor game process, its **Additional Server Game Options** field can supply `?Seed=5751`; that setting is handled by UE's new-process launch path, so do not assume it affects an in-editor host. Do not use the development Restart button before/during the recipe: it intentionally chooses a new seed. Stop/restart PIE to repeat. Remove the optional seed override for ordinary random sessions. The opening/results below are verified by Automation; the editor launch and hands-on observations remain for the user to validate.
+The installed UE 5.8 `BuildPlayWorldURL` appends `InEditorGameURLOptions` to the PIE map URL. Alternatively, when launching the listen server as a new editor game process, its **Additional Server Game Options** field can supply `?Seed=5751`; that setting is handled by UE's new-process launch path, so do not assume it affects an in-editor host. Do not use the development Restart button before/during the recipe: it intentionally chooses a new seed. Stop/restart PIE to repeat. Remove the optional seed override for ordinary random sessions. The opening/results below are verified by Automation and retained for repeat checks; Phase 4B.1 user manual PIE acceptance is recorded above.
 
 Coordinates are zero-based `(column, row)`, counted from the top-left. In each row, Black plays first, then White:
 
@@ -705,4 +709,73 @@ Coordinates are zero-based `(column, row)`, counted from the top-left. In each r
 4. On Black's turn, Tetris remains disabled with the later-phase explanation; clicking it changes nothing. Black places `(17,17)` normally instead.
 5. White plays **Steal**: Black becomes empty (**0**); White sees `[Ghost, Steal, Tetris]` (**3**). No public stolen-card message appears. Continue with an ordinary Black placement and confirm both boards/turns agree. Host and remote client have both played cards through the same UI path.
 
-**Phase 4B.1 user manual PIE validation is pending.** Physical LAN remains pending until a Development packaged build; no LAN/Internet validation is claimed or required now. Phase 4B.2 targeted/persistent cards, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. This focused implementation is committed under the request's explicit commit/push instruction while its manual checklist is handed to the user.
+**Phase 4B.1 user manual PIE validation: PASSED.** Physical LAN remains pending until a Development packaged build; no LAN/Internet validation is claimed or required now. Phase 4B.2 targeted-card implementation follows below; Phase 4B.3 persistent-rule cards, later Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain pending.
+
+
+## Phase 4B.2 — Targeted board card networking
+
+**Implemented; automated validation passed; Phase 4B.2 user manual PIE validation pending.** Phase 4A and Phase 4B.1 user two-player PIE acceptance remain passed. This phase adds exactly **Tactical Nuke, Polarity and Barrier**. Together with Restock, Swap Hands and Steal, six cards are network-enabled. Confusion, Back to Basics, Ghost and Tetris remain visible when held but disabled for network play. The full authoritative ten-card pool/probabilities and all Core/Cards source remain unchanged.
+
+### Target intent, authority and projections
+
+The existing non-targeted `ServerPlayCard(Epoch, ExpectedCompletedActions, CardId)` still accepts only Restock/Swap Hands/Steal. New reliable `ServerPlayTargetedCard(Epoch, ExpectedCompletedActions, CardId, TargetX, TargetY)` accepts only Nuke/Polarity/Barrier. Targets are normalized integer intersections/anchors, not raw screen coordinates. No actor ID, client-selected target domain, stone color, random result, board patch or predicted outcome is sent.
+
+GameMode checks assignment, Playing status, epoch, action token and the dedicated target whitelist, derives the actor from its server mapping (with the existing standalone-only fallback), then calls the same `Submit`/Core `ResolveAction` path with `FActionRequest::Play(actor, card, target)`. Core independently checks turn, card ownership, target domain and terminal/effect restrictions. Wrong-RPC requests, the four later cards and malformed IDs reject before mutation. No temporary restriction was added to Core, no generic action/target protocol was created, and the six-card union is used only where the runtime needs overall availability, including the full-board capability guard.
+
+| Card | Target and accepted Core behavior |
+| --- | --- |
+| Tactical Nuke | One intersection (`FBoard::Contains`, including the final row/column). Removes any stone and sets Empty + forbidden. No new global result evaluation. |
+| Polarity | Top-left intersection anchor of a 2×2 region (`ContainsAnchor`, indices 0–17 on each axis). Flips the four stones with existing `OppositeStone`; Empty stays Empty. Existing Core global evaluation may yield Black win, White win, simultaneous-line Draw or no result. |
+| Barrier | Visual center between four intersections, normalized by existing `FBoardLayout::TargetAt(..., Barrier)` to the top-left anchor (`ContainsAnchor`). Core `AddUnique` records connectivity blocking without moving stones. Repeating an existing Barrier is still legal and consumes the card/action; no duplicate rejection was introduced. |
+
+Accepted cards use existing action/turn/Confusion lifecycle; fixtures with active Confusion consume one action normally even though Confusion cannot yet be played over the network. These target effects introduce no RNG use. Rejections preserve the complete authoritative match/RNG, revision and public/private projections.
+
+**No new public or private projection fields.** Existing cells/forbidden flags, Barrier anchors, results and public hand counts represent every effect. Each accepted target advances the normal revision and republishes the public snapshot and both exact owner-private snapshots at the same epoch/revision. The actor's played card is consumed by Core; the opponent receives only its own hand. The existing acknowledgement carries no added card/target/effect/hidden-hand data. Coherence and the one-outstanding-request gate are reused, with no prediction or client result simulation.
+
+### Local targeting and previews
+
+The owning controller stores only a local selected card byte, never a selected player ID or a copied rules state. Clicking an eligible targeted card selects it; clicking it again, right-clicking or pressing Escape cancels. Selection, hovering and cancellation send no RPC and consume no action, revision or RNG. The UI restores the accepted geometry: Nuke intersection highlight, Polarity 2×2 outline, and Barrier cross at the cell center.
+
+A board click takes exactly one branch: ordinary placement when unselected, targeted intent when selected. Only sending the intent engages the existing pending gate. Selection clears when sent; a rejected target shows the existing safe error and can be reselected/retried. Invalid geometry yields an invalid coordinate for server rejection, never an ordinary placement fallback. New revisions, resets, loss of coherence/eligibility and other submitted actions clear stale selection. Slate never reads GameMode/`FMatchState` or runs authoritative validation. The old state-based hot-seat targeting helper is not used by this network view.
+
+### Agent validation
+
+Unreal **5.8.2 Win64 Development Editor build succeeded**. The complete exported `Saved/Automation/Phase4B2/index.json` reports **47 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in progress**. All 45 accepted groups remain; two older assertion labels now describe the non-targeted input contract rather than calling newly enabled target cards globally disabled. Their assertions were not weakened.
+
+New groups:
+
+- `Gomokards.Phase4B2.TargetRpcAndGeometry`: reflected reliable RPC parameters, exact/disjoint whitelist for all 256 byte values, every intersection/anchor edge, Barrier cell-center normalization and preview-cross geometry.
+- `Gomokards.Phase4B2.AuthorityOutcomesAndLocalTargeting`: each target card's assignment/turn/ownership/session/epoch/token/terminal rejection safety; malformed/wrong-RPC requests; full-state Core parity and reversed seats; unchanged RNG and Confusion lifecycle; Nuke removal/forbidden data; Polarity no-result/Black-win/White-win/Draw with terminal rejection; no invented global evaluation for Nuke/Barrier; duplicate Barrier and subsequent authoritative connectivity; both private snapshots/public board coherence; selection/reselect/Escape/right-click cancellation; exclusive ordinary/targeted click routing; rejection retry/reset cleanup; verified deterministic opening below.
+
+The first UI-routing test run exposed that the transient test world had not begun play, so Unreal suppressed `ProcessEvent`. The fixture now scopes Unreal's local editor script-execution allowance around controller RPC-wrapper/Slate-handler checks. This is test-only, with no production authority workaround. It verifies local routing, not network packet transport. A test coordinate also required an explicit `FIntPoint` for compilation. The final full suite above passed after both fixture corrections. No agent-driven gameplay occurred; startup file-journal/layout warnings are outside Automation test results.
+
+Static review: public/private/ack reflected field inventories and owner-only replication remain unchanged and pass the existing privacy tests; no authoritative match/RNG is replicated; no client actor ID/raw pixels enter the target RPC; no effects are duplicated in GameState/Slate; no both-hand HUD, extra client RNG, OnlineSubsystem, new service, map, asset or config change was added. GameState's only change grants the new Automation fixture access. Generated/cache files are excluded. No protection against a malicious authority host is claimed.
+
+### Deterministic Manual PIE Validation Checklist — user pending
+
+First confirm the accepted ordinary/basic-card behavior still works in two-player Listen Server + Client PIE; the retained `5751` recipe above remains available. For targeted cards, start a fresh session with **`?Seed=1294`** using the same existing seed mechanism. For in-editor PIE, launch Editor with:
+
+```text
+UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=1294"
+```
+
+Use `/Game/Maps/LocalMatch`, two players, Play As Listen Server. Do not use the development Restart button during setup because it chooses a new seed; stop/start PIE to repeat. No hand injection, cheat RPC or grant mechanism exists. The seed/opening/effects are verified through the server adapter by Automation; user hands-on validation remains pending.
+
+Coordinates are zero-based `(column, row)` from the top-left. In each row play Black first, then White; the last row has only Black's move:
+
+| Pair | Black placement | White placement | Natural reward |
+| --- | --- | --- | --- |
+| 1 | `(5,5)` | `(6,5)` | None |
+| 2 | `(0,0)` | `(7,5)` | None |
+| 3 | `(8,5)` | `(1,0)` | Black: Tactical Nuke; White: Polarity |
+| 4 | `(9,9)` | `(10,9)` | None |
+| 5 | `(12,12)` | `(11,9)` | None |
+| 6 | `(12,9)` | — | Black: Barrier |
+
+1. After these **11 placements**, Black owns `[Tactical Nuke, Barrier]`, White owns `[Polarity]`; each sees only the opponent's count. White is current. Select Polarity and cancel by reselecting, Escape and right-click: action count remains 11 and hands/board do not change.
+2. Reselect Polarity: hover shows a 2×2 outline. Final row/column is not a valid anchor; clicking there must leave state unchanged and show rejection (reselect afterward). Apply at top-left anchor `(5,5)`: `(5,5)` becomes White, `(6,5)` becomes Black, the two empty points remain empty. Both windows agree; turn passes to Black.
+3. Black selects Nuke and targets intersection `(6,5)`: the stone disappears and the forbidden mark appears in both windows. White attempts ordinary placement there: reject unchanged; then White places `(15,15)` normally.
+4. Black selects Barrier and clicks the **center** between intersections `(9,9)`, `(10,9)`, `(9,10)`, `(10,10)` (board-local pixel `(300,300)` at the existing layout scale). The yellow cross preview becomes the same cyan Barrier on both windows, with all stones intact; turn passes to White.
+5. White places `(16,15)` normally. Verify correct action/turn progress, own-hand consumption/public counts and continued ordinary play. Both host and remote have now used targeted cards through the same path. Confusion/Back to Basics/Ghost/Tetris, if held in other draws, must remain visible but disabled.
+
+Polarity terminal wins/draws are explicitly covered by Automation; the manual pass need not construct them artificially. **Phase 4B.2 manual PIE validation remains pending.** Physical two-PC LAN validation remains pending until the first Development packaged build; it is not a blocker here. Phase 4B.3 Confusion/Back to Basics networking, later Ghost/Tetris networking, and Phase 4C Internet/session infrastructure remain unimplemented. No LAN or Internet validation is claimed. This focused commit follows the explicit request to commit/push with the manual checklist handed to the user.

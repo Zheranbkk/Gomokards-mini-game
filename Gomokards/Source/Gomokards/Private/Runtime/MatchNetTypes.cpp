@@ -46,3 +46,9 @@ bool IsNetworkCardEnabled(uint8 CardId)
     using Gomokards::ECardId;
     return CardId==uint8(ECardId::Restock) || CardId==uint8(ECardId::SwapHands) || CardId==uint8(ECardId::Steal);
 }
+
+bool IsTargetedNetworkCardEnabled(uint8 CardId)
+{
+    using Gomokards::ECardId;
+    return CardId==uint8(ECardId::TacticalNuke) || CardId==uint8(ECardId::Polarity) || CardId==uint8(ECardId::Barrier);
+}

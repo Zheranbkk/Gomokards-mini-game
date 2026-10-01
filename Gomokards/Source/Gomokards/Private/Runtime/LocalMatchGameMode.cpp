@@ -38,7 +38,7 @@ void ALocalMatchGameMode::StartWithSeed(int32 Seed)
 }
 Gomokards::FActionResult ALocalMatchGameMode::Submit(const Gomokards::FActionRequest& Request)
 {
-    if (bSessionInitialized && !bStandaloneSession && Request.Type==Gomokards::EActionType::PlayCard && !IsNetworkCardEnabled(uint8(Request.Card)))
+    if (bSessionInitialized && !bStandaloneSession && Request.Type==Gomokards::EActionType::PlayCard && !IsNetworkCardEnabled(uint8(Request.Card)) && !IsTargetedNetworkCardEnabled(uint8(Request.Card)))
     { return {Gomokards::EActionError::UnsupportedAction, false}; }
     const auto Result = Gomokards::ResolveAction(Match, Request);
     if (Result.IsAccepted())
@@ -215,6 +215,21 @@ FMatchActionAck ALocalMatchGameMode::CardFrom(ALocalMatchPlayerController* Contr
     Ack.RuleError=static_cast<uint8>(Result.Error); Ack.bBlockingReward=Result.bBlockingReward;
     return Ack;
 }
+FMatchActionAck ALocalMatchGameMode::TargetedCardFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ExpectedActions, uint8 CardId, FIntPoint Target)
+{
+    const int32* Assigned=Assignments.Find(Controller);
+    if (!Assigned) { return Acknowledgement(EMatchIntentError::Unassigned); }
+    if (Session!=EMatchSession::Playing) { return Acknowledgement(EMatchIntentError::NotPlaying); }
+    if (Epoch!=MatchEpoch) { return Acknowledgement(EMatchIntentError::StaleEpoch); }
+    if (ExpectedActions!=Match.CompletedActions) { return Acknowledgement(EMatchIntentError::StaleAction); }
+    if (!IsTargetedNetworkCardEnabled(CardId)) { return Acknowledgement(EMatchIntentError::CardNotNetworkEnabled); }
+    const int32 Actor=bStandaloneSession && GetNetMode()==NM_Standalone && Controller->IsLocalController()
+        ? Match.Players[Match.CurrentPlayerIndex].Id : *Assigned;
+    const auto Result=Submit(Gomokards::FActionRequest::Play(Actor,static_cast<Gomokards::ECardId>(CardId),Target));
+    auto Ack=Acknowledgement(Result.IsAccepted() ? EMatchIntentError::None : EMatchIntentError::RuleRejected);
+    Ack.RuleError=static_cast<uint8>(Result.Error); Ack.bBlockingReward=Result.bBlockingReward;
+    return Ack;
+}
 FMatchActionAck ALocalMatchGameMode::RestartFrom(ALocalMatchPlayerController* Controller, uint64 Epoch)
 {
     if (!Assignments.Contains(Controller) || !DevelopmentAdmins.Contains(Controller))
@@ -238,7 +253,7 @@ void ALocalMatchGameMode::PublishViews()
         for (const auto& Cell : Match.Board.Cells)
         { if (Cell.Stone==Gomokards::EStone::Empty && !Cell.bForbidden) { bPlaceExists=true; break; } }
         const bool bCardExists=Gomokards::CanPlayCards(Match) && Match.Players[Match.CurrentPlayerIndex].Hand.ContainsByPredicate(
-            [](Gomokards::ECardId Card){return IsNetworkCardEnabled(uint8(Card));});
+            [](Gomokards::ECardId Card){return IsNetworkCardEnabled(uint8(Card)) || IsTargetedNetworkCardEnabled(uint8(Card));});
         if (!bPlaceExists && !bCardExists) { Session=EMatchSession::SessionEnded; CancelGhostPreparation(); CancelTetrisGravity(); }
     }
     if (auto* GS=Cast<ALocalMatchGameState>(GameState))

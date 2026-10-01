@@ -107,7 +107,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
     {
         GM->Match.Players[0].Hand={Card}; GM->PublishViews();
         Reject(A,GM->MatchEpoch,0,uint8(Card),EMatchIntentError::CardNotNetworkEnabled);
-        TestFalse(TEXT("Later-phase and malformed card UI disabled"),A->CanPlayCard(uint8(Card)));
+        TestFalse(TEXT("Cards outside the non-targeted whitelist cannot use basic input"),A->CanPlayCard(uint8(Card)));
         auto Ack=GM->CardFrom(A,GM->MatchEpoch,0,uint8(Card)); A->ClientActionResult_Implementation(Ack);
         TestTrue(TEXT("Safe explanatory rejection feedback"),A->GetFeedback().Contains(TEXT("later phase")));
     }
@@ -185,7 +185,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
     TestTrue(TEXT("Blocking reward still draws from full pool"),GM->PlaceFrom(A,GM->MatchEpoch,0,{2,4}).bBlockingReward);
     CheckViews();
     const ECardId Later=GM->Match.Players[0].Hand[0];
-    TestTrue(TEXT("Later-phase card exists privately, count public, button disabled"),!IsNetworkCardEnabled(uint8(Later)) && A->PrivateView.Hand.Contains(uint8(Later)) && GS->PublicView.Seats[0].HandCount==1 && B->PrivateView.Hand.IsEmpty() && !A->CanPlayCard(uint8(Later)));
+    TestTrue(TEXT("Non-basic card exists privately, count public, basic input disabled"),!IsNetworkCardEnabled(uint8(Later)) && A->PrivateView.Hand.Contains(uint8(Later)) && GS->PublicView.Seats[0].HandCount==1 && B->PrivateView.Hand.IsEmpty() && !A->CanPlayCard(uint8(Later)));
     GM->PlaceFrom(B,GM->MatchEpoch,1,{10,10});
     Reject(A,GM->MatchEpoch,2,uint8(Later),EMatchIntentError::CardNotNetworkEnabled);
     Reset(); GM->StartWithSeed(LaterSeed); GM->Match.Players[0].Hand={ECardId::Restock}; GM->PublishViews();

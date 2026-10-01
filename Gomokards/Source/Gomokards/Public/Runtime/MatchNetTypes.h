@@ -74,3 +74,4 @@ GOMOKARDS_API FMatchPrivateView MakePrivateView(const Gomokards::FMatchState& St
 
 // Migration boundary only; the authoritative draw pool and core definitions remain unchanged.
 GOMOKARDS_API bool IsNetworkCardEnabled(uint8 CardId);
+GOMOKARDS_API bool IsTargetedNetworkCardEnabled(uint8 CardId);

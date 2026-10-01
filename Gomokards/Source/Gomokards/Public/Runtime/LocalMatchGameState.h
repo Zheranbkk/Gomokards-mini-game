@@ -20,4 +20,5 @@ private:
     friend class ALocalMatchGameMode;
     friend class FMatchNetworkTest;
     friend class FBasicCardNetworkTest;
+    friend class FTargetedCardNetworkTest;
 };
