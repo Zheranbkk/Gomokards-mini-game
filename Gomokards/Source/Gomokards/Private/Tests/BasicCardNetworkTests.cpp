@@ -26,8 +26,8 @@ bool FBasicCardContractTest::RunTest(const FString&)
     TestNotNull(TEXT("Card byte safely represents malformed enum input for adapter rejection"),FindFProperty<FByteProperty>(RPC,TEXT("CardId")));
     for (int32 I=0; I<=255; ++I)
     {
-        const bool Expected=I==uint8(ECardId::Restock) || I==uint8(ECardId::SwapHands) || I==uint8(ECardId::Steal) || I==uint8(ECardId::Confusion) || I==uint8(ECardId::BackToBasics) || I==uint8(ECardId::Ghost);
-        TestEqual(TEXT("Non-targeted whitelist exactly six, including every malformed byte"),IsNetworkCardEnabled(uint8(I)),Expected);
+        const bool Expected=I==uint8(ECardId::Restock) || I==uint8(ECardId::SwapHands) || I==uint8(ECardId::Steal) || I==uint8(ECardId::Confusion) || I==uint8(ECardId::BackToBasics) || I==uint8(ECardId::Ghost) || I==uint8(ECardId::Tetris);
+        TestEqual(TEXT("Non-targeted whitelist exactly seven, including every malformed byte"),IsNetworkCardEnabled(uint8(I)),Expected);
     }
     TestEqual(TEXT("Authoritative pool remains all ten cards"),GetPlayableCards().Num(),10);
     for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost,ECardId::Tetris})
@@ -102,7 +102,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
         Reject(A,GM->MatchEpoch,0,uint8(Card),EMatchIntentError::NotPlaying);
     }
     Reset();
-    for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Barrier,ECardId::Tetris,
+    for (auto Card : {ECardId::TacticalNuke,ECardId::Polarity,ECardId::Barrier,
         ECardId::Invalid,ECardId::FastDuel,ECardId::Undo,ECardId::Joker,static_cast<ECardId>(255)})
     {
         GM->Match.Players[0].Hand={Card}; GM->PublishViews();
@@ -210,7 +210,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
     TestTrue(TEXT("Manual Restock exact resulting own hand"),GM->Match.Players[0].Hand==TArray<ECardId>{ECardId::Steal,ECardId::Ghost,ECardId::Steal}); CheckViews();
     TestTrue(TEXT("Manual White Swap"),GM->CardFrom(B,GM->MatchEpoch,17,uint8(ECardId::SwapHands)).bAccepted);
     TestTrue(TEXT("Manual swapped hands"),GM->Match.Players[0].Hand==TArray<ECardId>{ECardId::Tetris} && GM->Match.Players[1].Hand==TArray<ECardId>{ECardId::Steal,ECardId::Ghost,ECardId::Steal}); CheckViews();
-    Reject(A,GM->MatchEpoch,18,uint8(ECardId::Tetris),EMatchIntentError::CardNotNetworkEnabled);
+    TestTrue(TEXT("Tetris now network-enabled without changing this retained steal recipe"),IsNetworkCardEnabled(uint8(ECardId::Tetris)));
     TestTrue(TEXT("Manual Black ordinary move"),GM->PlaceFrom(A,GM->MatchEpoch,18,{17,17}).bAccepted);
     TestTrue(TEXT("Manual White Steal"),GM->CardFrom(B,GM->MatchEpoch,19,uint8(ECardId::Steal)).bAccepted);
     TestTrue(TEXT("Manual stolen card delivered only as resulting owner hand"),GM->Match.Players[0].Hand.IsEmpty() && GM->Match.Players[1].Hand==TArray<ECardId>{ECardId::Ghost,ECardId::Steal,ECardId::Tetris}); CheckViews();
@@ -222,7 +222,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
     GM->PublishViews();
     TestTrue(TEXT("No empty legal point but network card keeps session playing"),GM->Session==EMatchSession::Playing);
     TestTrue(TEXT("Card on full/forbidden board resolves through Core"),GM->CardFrom(A,GM->MatchEpoch,0,uint8(ECardId::Restock)).bAccepted && GM->Session==EMatchSession::Playing);
-    GM->Match.Players[1].Hand={ECardId::Tetris}; GM->PublishViews();
+    GM->Match.Players[1].Hand={ECardId::Invalid}; GM->PublishViews();
     TestTrue(TEXT("Only unexposed actions ends runtime slice without core draw"),GM->Session==EMatchSession::SessionEnded && GM->Match.Result.Status==EMatchStatus::InProgress);
     World->DestroyWorld(false);
     return true;

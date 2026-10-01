@@ -12,6 +12,28 @@ enum class EMatchIntentError : uint8 { None, Unassigned, NotPlaying, StaleEpoch,
 enum class EMatchDisplayStone : uint8 { Empty, Black, White, HiddenOccupied };
 UENUM()
 enum class EMatchGhostPhase : uint8 { None, Preparation, Hidden };
+UENUM()
+enum class EMatchTetrisInput : uint8 { Up, Down, Left, Right, Rotate };
+
+// Current public piece only; never Core FTetrisState, RNG, future spawn or timer data.
+USTRUCT()
+struct GOMOKARDS_API FMatchTetrisPose
+{
+    GENERATED_BODY()
+    UPROPERTY() bool bActive = false;
+    UPROPERTY() uint64 Epoch = 0;
+    UPROPERTY() uint64 BoardRevision = 0;
+    UPROPERTY() uint64 ActivationToken = 0;
+    UPROPERTY() uint64 PoseSequence = 0;
+    UPROPERTY() int32 BlockNumber = 0;
+    UPROPERTY() int32 OperatorPlayerId = INDEX_NONE;
+    UPROPERTY() uint8 Shape = 0;
+    UPROPERTY() uint8 Rotation = 0;
+    UPROPERTY() FIntPoint Origin = FIntPoint::ZeroValue;
+    UPROPERTY() uint8 SpawnEdge = 0;
+    UPROPERTY() uint8 Stone = 0;
+};
+
 USTRUCT()
 struct GOMOKARDS_API FMatchDisplayCell
 {
@@ -41,6 +63,7 @@ struct GOMOKARDS_API FMatchPublicView
     UPROPERTY() uint8 WinningStone = 0;
     UPROPERTY() uint8 DecisionReason = 0;
     UPROPERTY() bool bCardsDisabled = false;
+    UPROPERTY() bool bTetrisActive = false;
     UPROPERTY() int32 ConfusionRemaining = 0;
     UPROPERTY() EMatchGhostPhase GhostPhase = EMatchGhostPhase::None;
     UPROPERTY() int32 GhostPlacementsCompleted = 0;

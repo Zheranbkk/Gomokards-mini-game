@@ -7,6 +7,7 @@ void ALocalMatchGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ALocalMatchGameState, PublicView);
+    DOREPLIFETIME(ALocalMatchGameState, TetrisPose);
 }
 void ALocalMatchGameState::Publish(const FMatchPublicView& View)
 {
@@ -27,3 +28,12 @@ void ALocalMatchGameState::OnRep_PublicView()
         if (auto* PC=Cast<ALocalMatchPlayerController>(It->Get()); PC && PC->IsLocalController()) { PC->RefreshPresentation(); }
     }
 }
+
+void ALocalMatchGameState::PublishTetrisPose(const FMatchTetrisPose& Pose)
+{
+    check(HasAuthority());
+    TetrisPose=Pose;
+    ForceNetUpdate();
+    OnRep_TetrisPose();
+}
+void ALocalMatchGameState::OnRep_TetrisPose() { OnRep_PublicView(); }

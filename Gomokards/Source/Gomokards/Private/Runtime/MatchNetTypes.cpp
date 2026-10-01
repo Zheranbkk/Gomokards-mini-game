@@ -24,6 +24,7 @@ FMatchPublicView MakePublicView(const Gomokards::FMatchState& State, const TArra
     }
     if (State.Players.IsValidIndex(State.CurrentPlayerIndex)) { View.CurrentPlayerId=State.Players[State.CurrentPlayerIndex].Id; }
     View.CompletedActions=State.CompletedActions;
+    View.bTetrisActive=State.Tetris.bActive;
     View.Result=static_cast<uint8>(State.Result.Status); View.WinningStone=static_cast<uint8>(State.Result.WinningStone);
     View.DecisionReason=static_cast<uint8>(State.Result.Decision);
     View.bCardsDisabled=State.bCardsDisabled; View.ConfusionRemaining=State.ConfusionActionsRemaining;
@@ -49,7 +50,7 @@ bool IsNetworkCardEnabled(uint8 CardId)
 {
     using Gomokards::ECardId;
     return CardId==uint8(ECardId::Restock) || CardId==uint8(ECardId::SwapHands) || CardId==uint8(ECardId::Steal)
-        || CardId==uint8(ECardId::Confusion) || CardId==uint8(ECardId::BackToBasics) || CardId==uint8(ECardId::Ghost);
+        || CardId==uint8(ECardId::Confusion) || CardId==uint8(ECardId::BackToBasics) || CardId==uint8(ECardId::Ghost) || CardId==uint8(ECardId::Tetris);
 }
 
 bool IsTargetedNetworkCardEnabled(uint8 CardId)

@@ -10,10 +10,14 @@ class GOMOKARDS_API ALocalMatchGameState : public AGameStateBase
     GENERATED_BODY()
 public:
     const FMatchPublicView& GetPublicView() const { return PublicView; }
+    const FMatchTetrisPose& GetTetrisPose() const { return TetrisPose; }
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 protected:
     virtual void BeginPlay() override;
 private:
+    UPROPERTY(ReplicatedUsing=OnRep_TetrisPose) FMatchTetrisPose TetrisPose;
+    UFUNCTION() void OnRep_TetrisPose();
+    void PublishTetrisPose(const FMatchTetrisPose& Pose);
     UPROPERTY(ReplicatedUsing=OnRep_PublicView) FMatchPublicView PublicView;
     UFUNCTION() void OnRep_PublicView();
     void Publish(const FMatchPublicView& View);
@@ -23,4 +27,5 @@ private:
     friend class FTargetedCardNetworkTest;
     friend class FPersistentCardNetworkTest;
     friend class FGhostNetworkTest;
+    friend class FTetrisNetworkTest;
 };

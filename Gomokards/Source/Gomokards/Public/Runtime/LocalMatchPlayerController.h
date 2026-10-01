@@ -31,8 +31,13 @@ public:
     void RefreshPresentation();
     FString StatusLabel() const;
     FString GhostStatusLabel() const;
+    FString TetrisStatusLabel() const;
+    const FMatchTetrisPose* GetDisplayTetrisPose() const;
+    bool CanSendTetrisInput() const;
+    void RequestTetrisInput(EMatchTetrisInput Input);
     FMatchPresentationChanged OnPresentationChanged;
 
+    UFUNCTION(Server, Reliable) void ServerTetrisInput(uint64 Epoch, uint64 ActivationToken, int32 BlockNumber, EMatchTetrisInput Input);
     UFUNCTION(Server, Reliable) void ServerPlaceStone(uint64 Epoch, uint64 ExpectedCompletedActions, int32 X, int32 Y);
     UFUNCTION(Server, Reliable) void ServerPlayCard(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId);
     UFUNCTION(Server, Reliable) void ServerPlayTargetedCard(uint64 Epoch, uint64 ExpectedCompletedActions, uint8 CardId, int32 TargetX, int32 TargetY);
@@ -45,6 +50,7 @@ private:
     UPROPERTY(ReplicatedUsing=OnRep_PrivateView) FMatchPrivateView PrivateView;
     UFUNCTION() void OnRep_PrivateView();
     void PublishPrivate(const FMatchPrivateView& View);
+    FMatchTetrisPose LatestTetrisPose;
     FMatchPublicView DisplayPublic;
     FMatchPrivateView DisplayPrivate;
     uint8 SelectedTargetedCard = 0; // Local presentation only: no stored player identity.
@@ -59,4 +65,5 @@ private:
     friend class FTargetedCardNetworkTest;
     friend class FPersistentCardNetworkTest;
     friend class FGhostNetworkTest;
+    friend class FTetrisNetworkTest;
 };

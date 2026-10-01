@@ -21,9 +21,11 @@ public:
     bool CanPlace(FIntPoint Coordinate) const;
     uint8 PreviewStone() const;
     const FMatchPublicView& GetPublicView() const;
+    const FMatchTetrisPose* GetTetrisPose() const;
 private:
     TWeakObjectPtr<ALocalMatchPlayerController> Owner;
     TSharedPtr<SVerticalBox> Hands;
     TSharedPtr<SWidget> BoardView;
     FDelegateHandle ChangedHandle;
+    uint64 HandEpoch = MAX_uint64, HandRevision = MAX_uint64;
 };

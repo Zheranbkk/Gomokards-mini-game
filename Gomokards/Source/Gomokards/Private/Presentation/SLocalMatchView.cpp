@@ -1,6 +1,7 @@
 #include "Presentation/SLocalMatchView.h"
 #include "Runtime/LocalMatchPlayerController.h"
 #include "Presentation/MatchPresentation.h"
+#include "Core/TetrisRules.h"
 #include "Widgets/SLeafWidget.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBox.h"
@@ -62,7 +63,7 @@ public:
             }
             else if (Cell.Stone != 0)
             {
-                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), &StoneBrush,
+                FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), Board.bTetrisActive ? White : &StoneBrush,
                     ESlateDrawEffect::None, DisplayStoneColor(Cell.Stone));
             }
         }
@@ -93,7 +94,16 @@ public:
             FSlateDrawElement::MakeBox(Out,Layer+5,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
                 &StoneBrush,ESlateDrawEffect::None,Preview);
         }
-        return Layer+5;
+        if (const auto* Pose=Pinned->GetTetrisPose())
+        {
+            for (const auto Offset : TetrisOffsets(static_cast<ETetrisShape>(Pose->Shape),Pose->Rotation))
+            {
+                const FVector2D Center=FBoardLayout::Center(Pose->Origin+Offset);
+                FSlateDrawElement::MakeBox(Out,Layer+6,G.ToPaintGeometry(FVector2D(28),FSlateLayoutTransform(Center-FVector2D(14))),White,ESlateDrawEffect::None,FLinearColor(1,.65f,.05f));
+                FSlateDrawElement::MakeBox(Out,Layer+7,G.ToPaintGeometry(FVector2D(22),FSlateLayoutTransform(Center-FVector2D(11))),White,ESlateDrawEffect::None,DisplayStoneColor(Pose->Stone));
+            }
+        }
+        return Layer+7;
     }
     virtual FReply OnMouseMove(const FGeometry& G, const FPointerEvent& E) override
     { Hover = G.AbsoluteToLocal(E.GetScreenSpacePosition()); Invalidate(EInvalidateWidgetReason::Paint); return FReply::Handled(); }
@@ -121,11 +131,13 @@ void SLocalMatchView::Construct(const FArguments& Args)
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 5A"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 5B"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->GhostStatusLabel());}).ColorAndOpacity(FLinearColor(.7f,.8f,1))]
+            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
+            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->TetrisStatusLabel());}).ColorAndOpacity(FLinearColor(.7f,.8f,1))]
             +SVerticalBox::Slot().AutoHeight()
             [SNew(SHorizontalBox)
                 +SHorizontalBox::Slot().AutoWidth()
@@ -138,7 +150,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
                         .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Nine cards are playable, including Ghost. Tetris awaits Phase 5B.\nOnly your card contents are shown. Both hand counts are public.")))]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("All ten cards are playable, including Ghost and Tetris.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
@@ -156,6 +168,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
 SLocalMatchView::~SLocalMatchView()
 { if (Owner.IsValid()) { Owner->OnPresentationChanged.Remove(ChangedHandle); } }
 const FMatchPublicView& SLocalMatchView::GetPublicView() const { return Owner->GetPublicView(); }
+const FMatchTetrisPose* SLocalMatchView::GetTetrisPose() const { return Owner->GetDisplayTetrisPose(); }
 bool SLocalMatchView::CanPlace(FIntPoint Point) const { return Owner->CanPlace(Point); }
 uint8 SLocalMatchView::PreviewStone() const
 {
@@ -166,9 +179,12 @@ uint8 SLocalMatchView::PreviewStone() const
 void SLocalMatchView::Refresh()
 {
     BoardView->Invalidate(EInvalidateWidgetReason::Paint);
-    Hands->ClearChildren();
     const auto& Public=Owner->GetPublicView();
     const auto& Private=Owner->GetPrivateView();
+    // Pose-only notifications must not rebuild hand buttons or disturb keyboard focus.
+    if (HandEpoch==Public.Epoch && HandRevision==Public.Revision) { return; }
+    HandEpoch=Public.Epoch; HandRevision=Public.Revision;
+    Hands->ClearChildren();
     for (const auto& Seat : Public.Seats)
     {
         Hands->AddSlot().AutoHeight().Padding(0,8)
@@ -195,6 +211,11 @@ void SLocalMatchView::CancelTargeting() { Owner->CancelTargeting(); }
 void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestBoardClick(Coordinate); }
 FReply SLocalMatchView::OnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
 {
+    if (GetPublicView().bTetrisActive)
+    {
+        const auto Input=TetrisInputForKey(Event.GetKey());
+        if (Input.IsSet()) { Owner->RequestTetrisInput(static_cast<EMatchTetrisInput>(Input.GetValue())); return FReply::Handled(); }
+    }
     if (Event.GetKey()==EKeys::Escape) { CancelTargeting(); return FReply::Handled(); }
     return SCompoundWidget::OnPreviewKeyDown(Geometry,Event);
 }

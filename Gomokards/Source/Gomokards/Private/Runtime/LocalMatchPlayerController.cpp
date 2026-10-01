@@ -50,6 +50,10 @@ void ALocalMatchPlayerController::RefreshPresentation()
     if (GS)
     {
         const auto& Public=GS->GetPublicView();
+        const auto& Pose=GS->GetTetrisPose();
+        if (Pose.Epoch>LatestTetrisPose.Epoch || (Pose.Epoch==LatestTetrisPose.Epoch &&
+            (Pose.ActivationToken>LatestTetrisPose.ActivationToken || (Pose.ActivationToken==LatestTetrisPose.ActivationToken && Pose.PoseSequence>LatestTetrisPose.PoseSequence))))
+        { LatestTetrisPose=Pose; }
         // Never retain old hand contents across reset while waiting for the other Actor.
         if (FMath::Max(Public.Epoch,PrivateView.Epoch)>DisplayPublic.Epoch)
         {
@@ -100,19 +104,19 @@ bool ALocalMatchPlayerController::IsPresentationReady() const
 bool ALocalMatchPlayerController::CanPlace(FIntPoint Point) const
 {
     if (!IsPresentationReady() || bPending || DisplayPublic.Session!=EMatchSession::Playing || DisplayPublic.Result!=0 ||
-        DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation || DisplayPublic.CurrentPlayerId!=DisplayPrivate.PlayerId || Point.X<0 || Point.Y<0 || Point.X>=19 || Point.Y>=19) { return false; }
+        DisplayPublic.bTetrisActive || DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation || DisplayPublic.CurrentPlayerId!=DisplayPrivate.PlayerId || Point.X<0 || Point.Y<0 || Point.X>=19 || Point.Y>=19) { return false; }
     const auto& Cell=DisplayPublic.Cells[Point.Y*19+Point.X];
     return Cell.Stone==0 && !Cell.bForbidden;
 }
 bool ALocalMatchPlayerController::CanPlayCard(uint8 CardId) const
 {
     return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
-        !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        !DisplayPublic.bTetrisActive && !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
         IsNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
 }
 void ALocalMatchPlayerController::RequestCard(uint8 CardId)
 {
-    if (!IsPresentationReady() || bPending) { return; }
+    if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive) { return; }
     SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlayCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId);
@@ -121,7 +125,7 @@ void ALocalMatchPlayerController::RequestCard(uint8 CardId)
 bool ALocalMatchPlayerController::CanTargetCard(uint8 CardId) const
 {
     return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
-        !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        !DisplayPublic.bTetrisActive && !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
         IsTargetedNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
 }
 void ALocalMatchPlayerController::ToggleTargeting(uint8 CardId)
@@ -146,7 +150,7 @@ void ALocalMatchPlayerController::RequestBoardClick(FIntPoint Point)
 }
 void ALocalMatchPlayerController::RequestTargetedCard(uint8 CardId, FIntPoint Target)
 {
-    if (!IsPresentationReady() || bPending) { return; }
+    if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive) { return; }
     SelectedTargetedCard=0; // Rejection can be retried by selecting the card again.
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlayTargetedCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId,Target.X,Target.Y);
@@ -158,7 +162,7 @@ void ALocalMatchPlayerController::RequestPlace(FIntPoint Point)
 {
     // Preparation freezes local board input; the server independently rejects crafted requests.
     // Otherwise let the server explain wrong-turn/invalid-cell requests.
-    if (!IsPresentationReady() || bPending || DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation) { return; }
+    if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive || DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation) { return; }
     SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlaceStone(DisplayPublic.Epoch,DisplayPublic.CompletedActions,Point.X,Point.Y);
@@ -230,4 +234,40 @@ FString ALocalMatchPlayerController::GhostStatusLabel() const
     if (DisplayPublic.GhostPhase==EMatchGhostPhase::Hidden)
     { return FString::Printf(TEXT("GHOST: Colors hidden - %d placements remaining. Cards unavailable."),6-DisplayPublic.GhostPlacementsCompleted); }
     return {};
+}
+
+const FMatchTetrisPose* ALocalMatchPlayerController::GetDisplayTetrisPose() const
+{
+    return bCoherent && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.bTetrisActive && LatestTetrisPose.bActive &&
+        LatestTetrisPose.Epoch==DisplayPublic.Epoch && LatestTetrisPose.BoardRevision==DisplayPublic.Revision ? &LatestTetrisPose : nullptr;
+}
+bool ALocalMatchPlayerController::CanSendTetrisInput() const
+{
+    const auto* Pose=GetDisplayTetrisPose();
+    return IsPresentationReady() && Pose && (DisplayPrivate.PlayerId==Pose->OperatorPlayerId ||
+        (GetNetMode()==NM_Standalone && IsLocalController()));
+}
+void ALocalMatchPlayerController::RequestTetrisInput(EMatchTetrisInput Input)
+{
+    if (!CanSendTetrisInput() || uint8(Input)>uint8(EMatchTetrisInput::Rotate)) { return; }
+    const auto& Pose=LatestTetrisPose;
+    ServerTetrisInput(Pose.Epoch,Pose.ActivationToken,Pose.BlockNumber,Input);
+}
+void ALocalMatchPlayerController::ServerTetrisInput_Implementation(uint64 Epoch, uint64 ActivationToken, int32 BlockNumber, EMatchTetrisInput Input)
+{
+    if (auto* MatchOwner=GetWorld()->GetAuthGameMode<ALocalMatchGameMode>())
+    { MatchOwner->TetrisInputFrom(this,Epoch,ActivationToken,BlockNumber,Input); }
+}
+FString ALocalMatchPlayerController::TetrisStatusLabel() const
+{
+    if (!bCoherent || !DisplayPublic.bTetrisActive || DisplayPublic.Session!=EMatchSession::Playing) { return {}; }
+    const auto* Pose=GetDisplayTetrisPose();
+    if (!Pose) { return TEXT("TETRIS: Synchronizing piece with board..."); }
+    static const TCHAR* Edges[]={TEXT("Top"),TEXT("Bottom"),TEXT("Left"),TEXT("Right")};
+    static const TCHAR* Gravity[]={TEXT("Down"),TEXT("Up"),TEXT("Right"),TEXT("Left")};
+    uint8 OperatorStone=0;
+    for (const auto& Seat : DisplayPublic.Seats) { if (Seat.PlayerId==Pose->OperatorPlayerId) { OperatorStone=Seat.Stone; } }
+    return FString::Printf(TEXT("TETRIS %d/6 | Operator: %s (ID %d) | Block: %s | Spawn: %s / Gravity: %s\nAbsolute arrows (opposite gravity disabled); Space: clockwise rotate. Only the operator controls."),
+        Pose->BlockNumber,*Gomokards::StoneLabel(static_cast<Gomokards::EStone>(OperatorStone)),Pose->OperatorPlayerId,
+        *Gomokards::StoneLabel(static_cast<Gomokards::EStone>(Pose->Stone)),Edges[FMath::Min(uint8(3),Pose->SpawnEdge)],Gravity[FMath::Min(uint8(3),Pose->SpawnEdge)]);
 }

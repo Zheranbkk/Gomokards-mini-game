@@ -32,6 +32,7 @@ void ALocalMatchGameMode::StartWithSeed(int32 Seed)
     CancelGhostPreparation();
     CancelTetrisGravity();
     Match.Reset(Seed);
+    ++TetrisActivationToken; TetrisPoseSequence=0;
     ++MatchEpoch; Revision=0;
     PublishViews();
     OnMatchChanged.Broadcast();
@@ -44,6 +45,8 @@ Gomokards::FActionResult ALocalMatchGameMode::Submit(const Gomokards::FActionReq
     if (Result.IsAccepted())
     {
         if (Match.GhostPhase == Gomokards::EGhostPhase::Preparation) { ScheduleGhostPreparation(); }
+        if (Request.Type==Gomokards::EActionType::PlayCard && Request.Card==Gomokards::ECardId::Tetris)
+        { ++TetrisActivationToken; TetrisPoseSequence=0; }
         if (Match.Tetris.bActive) { ScheduleTetrisGravity(); }
         PublishViews();
         OnMatchChanged.Broadcast();
@@ -110,6 +113,8 @@ bool ALocalMatchGameMode::PollTetrisGravity(double Now, uint64 Generation)
     if (Generation!=TetrisTimerGeneration) { return false; }
     if (!Match.Tetris.bActive) { CancelTetrisGravity(); return false; }
     if (Now<TetrisDeadline) { return true; }
+    const auto Before=Match.Tetris;
+    const auto BoardBefore=Match.Board;
     const bool bChanged=Gomokards::StepTetrisGravity(Match);
     if (Match.Tetris.bActive)
     {
@@ -118,7 +123,12 @@ bool ALocalMatchGameMode::PollTetrisGravity(double Now, uint64 Generation)
         if (TetrisDeadline<=Now) { TetrisDeadline=Now+0.5; }
     }
     else { CancelTetrisGravity(); }
-    if (bChanged) { OnMatchChanged.Broadcast(); }
+    if (bChanged)
+    {
+        if (Before.BlockNumber!=Match.Tetris.BlockNumber || !Match.Tetris.bActive || !(BoardBefore==Match.Board)) { PublishViews(); }
+        else { PublishTetrisPose(); }
+        OnMatchChanged.Broadcast();
+    }
     return Generation==TetrisTimerGeneration && Match.Tetris.bActive;
 }
 bool ALocalMatchGameMode::SubmitTetris(Gomokards::ETetrisInput Input)
@@ -128,6 +138,7 @@ bool ALocalMatchGameMode::SubmitTetrisAt(Gomokards::ETetrisInput Input, double N
     const bool bSoftDrop=Gomokards::TetrisTranslation(Input)==Gomokards::TetrisGravity(Match.Tetris.Edge);
     if (!Gomokards::ApplyTetrisInput(Match,Input)) { return false; }
     if (bSoftDrop) { TetrisDeadline=Now+0.5; }
+    PublishTetrisPose();
     OnMatchChanged.Broadcast();
     return true;
 }
@@ -248,7 +259,7 @@ void ALocalMatchGameMode::PublishViews()
     { Occupied.Reset(); for (const auto& Player : Match.Players) { Occupied.Add(Player.Id); } }
     // End only when this slice exposes no remaining action; never invent a core draw.
     if (bSessionInitialized && Session==EMatchSession::Playing && Match.Result.Status==Gomokards::EMatchStatus::InProgress
-        && Match.GhostPhase!=Gomokards::EGhostPhase::Preparation)
+        && Match.GhostPhase!=Gomokards::EGhostPhase::Preparation && !Match.Tetris.bActive)
     {
         bool bPlaceExists=false;
         for (const auto& Cell : Match.Board.Cells)
@@ -272,4 +283,31 @@ void ALocalMatchGameMode::PublishViews()
             PC->PublishPrivate(MakePrivateView(Match,ViewedPlayer,DevelopmentAdmins.Contains(PC),MatchEpoch,Revision));
         }
     }
+    PublishTetrisPose();
+}
+
+void ALocalMatchGameMode::PublishTetrisPose()
+{
+    FMatchTetrisPose Pose;
+    Pose.Epoch=MatchEpoch; Pose.BoardRevision=Revision;
+    Pose.ActivationToken=TetrisActivationToken; Pose.PoseSequence=++TetrisPoseSequence;
+    Pose.bActive=Match.Tetris.bActive && Session==EMatchSession::Playing;
+    if (Pose.bActive)
+    {
+        const auto& T=Match.Tetris;
+        Pose.BlockNumber=T.BlockNumber; Pose.OperatorPlayerId=Match.Players[T.OperatorIndex].Id;
+        Pose.Shape=uint8(T.Shape); Pose.Rotation=T.Rotation; Pose.Origin=T.Origin;
+        Pose.SpawnEdge=uint8(T.Edge); Pose.Stone=uint8(T.Stone);
+    }
+    if (auto* GS=Cast<ALocalMatchGameState>(GameState)) { GS->PublishTetrisPose(Pose); }
+}
+bool ALocalMatchGameMode::TetrisInputFrom(ALocalMatchPlayerController* Controller, uint64 Epoch, uint64 ActivationToken, int32 BlockNumber, EMatchTetrisInput Input)
+{
+    const int32* Assigned=Assignments.Find(Controller);
+    if (!Assigned || Session!=EMatchSession::Playing || Epoch!=MatchEpoch || !Match.Tetris.bActive ||
+        ActivationToken!=TetrisActivationToken || BlockNumber!=Match.Tetris.BlockNumber) { return false; }
+    const int32 Operator=Match.Players[Match.Tetris.OperatorIndex].Id;
+    const int32 Actor=bStandaloneSession && GetNetMode()==NM_Standalone && Controller->IsLocalController() ? Operator : *Assigned;
+    if (Actor!=Operator || uint8(Input)>uint8(EMatchTetrisInput::Rotate)) { return false; }
+    return SubmitTetris(static_cast<Gomokards::ETetrisInput>(Input));
 }

@@ -59,7 +59,7 @@ bool FMatchReflectionTest::RunTest(const FString&)
         TestEqual(TEXT("Exact reflected field count, no extra secrets"),Actual.Num(),Expected.Num());
         for (auto Name : Actual) { TestTrue(*FString::Printf(TEXT("Approved reflected field %s.%s"),*Type->GetName(),*Name.ToString()),Expected.Contains(Name)); }
     };
-    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("ConfusionRemaining"),TEXT("GhostPhase"),TEXT("GhostPlacementsCompleted"),TEXT("GhostDisplayEndServerTime"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
+    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("bTetrisActive"),TEXT("ConfusionRemaining"),TEXT("GhostPhase"),TEXT("GhostPlacementsCompleted"),TEXT("GhostDisplayEndServerTime"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
     Fields(FMatchDisplayCell::StaticStruct(),{TEXT("Stone"),TEXT("bForbidden")});
     Fields(FMatchSeatView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("bOccupied"),TEXT("HandCount")});
     Fields(FMatchPrivateView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("Hand"),TEXT("bDevelopmentAdmin"),TEXT("Epoch"),TEXT("Revision")});
@@ -74,10 +74,11 @@ bool FMatchReflectionTest::RunTest(const FString&)
         TestTrue(TEXT("Only explicit DTO is replicated with notification"),Property->Struct==Struct && Property->HasAllPropertyFlags(CPF_Net | CPF_RepNotify));
         const auto* Rep=Props.FindByPredicate([Property](const FLifetimeProperty& Item){return Item.RepIndex==Property->RepIndex;});
         TestTrue(TEXT("Actual lifetime replication condition"),Rep && Rep->Condition==Condition);
+        const bool bGameState=Type==ALocalMatchGameState::StaticClass();
         int32 OwnReplicated=0;
         for (TFieldIterator<FProperty> It(Type,EFieldIteratorFlags::ExcludeSuper); It; ++It)
-        { if (It->HasAnyPropertyFlags(CPF_Net)) { ++OwnReplicated; TestEqual(TEXT("No other replicated match field"),It->GetName(),FString(Name)); } }
-        TestEqual(TEXT("One match projection per actor"),OwnReplicated,1);
+        { if (It->HasAnyPropertyFlags(CPF_Net)) { ++OwnReplicated; TestTrue(TEXT("Only approved match projections"),bGameState ? (It->GetName()==TEXT("PublicView") || It->GetName()==TEXT("TetrisPose")) : It->GetName()==TEXT("PrivateView")); } }
+        TestEqual(TEXT("Exact approved projection count per actor"),OwnReplicated,bGameState ? 2 : 1);
     };
     // Net drivers normally initialize RepIndex before asking for lifetime properties.
     Controller->GetClass()->SetUpRuntimeReplicationData();
@@ -86,6 +87,15 @@ bool FMatchReflectionTest::RunTest(const FString&)
     Controller->GetLifetimeReplicatedProps(PrivateProps); GS->GetLifetimeReplicatedProps(PublicProps);
     Replication(Controller->GetClass(),TEXT("PrivateView"),FMatchPrivateView::StaticStruct(),PrivateProps,COND_OwnerOnly);
     Replication(GS->GetClass(),TEXT("PublicView"),FMatchPublicView::StaticStruct(),PublicProps,COND_None);
+    Replication(GS->GetClass(),TEXT("TetrisPose"),FMatchTetrisPose::StaticStruct(),PublicProps,COND_None);
+    Fields(FMatchTetrisPose::StaticStruct(),{TEXT("bActive"),TEXT("Epoch"),TEXT("BoardRevision"),TEXT("ActivationToken"),TEXT("PoseSequence"),TEXT("BlockNumber"),TEXT("OperatorPlayerId"),TEXT("Shape"),TEXT("Rotation"),TEXT("Origin"),TEXT("SpawnEdge"),TEXT("Stone")});
+    auto* Tetris=Controller->FindFunction(TEXT("ServerTetrisInput"));
+    if (TestNotNull(TEXT("Typed Tetris RPC exists"),Tetris))
+    {
+        TestTrue(TEXT("Tetris reliable Server only"),Tetris->HasAllFunctionFlags(FUNC_Net | FUNC_NetServer | FUNC_NetReliable) && !Tetris->HasAnyFunctionFlags(FUNC_NetMulticast));
+        Fields(Tetris,{TEXT("Epoch"),TEXT("ActivationToken"),TEXT("BlockNumber"),TEXT("Input")});
+        TestNotNull(TEXT("Explicit typed input"),FindFProperty<FEnumProperty>(Tetris,TEXT("Input")));
+    }
     auto* Place=Controller->FindFunction(TEXT("ServerPlaceStone"));
     if (TestNotNull(TEXT("Placement RPC exists"),Place))
     {

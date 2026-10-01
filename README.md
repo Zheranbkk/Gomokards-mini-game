@@ -888,7 +888,7 @@ Evidence: `MatchRules.cpp` functions `ValidateAction`, `ResolveAction`, `BeginGh
 
 ### Review recommendation: no separate pre-refactor
 
-**Decision A: no standalone structural refactor is required before Ghost.** Keep explicit mode fields/state machines in `FMatchState`, server runtime timers and deterministic Core transitions. The user accepted this no-pre-refactor conclusion for Phase 5A. The review below remains a historical design record; the Phase 5A implementation is documented separately at the end, while Phase 5B remains a proposal.
+**Decision A: no standalone structural refactor is required before Ghost.** Keep explicit mode fields/state machines in `FMatchState`, server runtime timers and deterministic Core transitions. The user accepted this no-pre-refactor conclusion for Phase 5A. The review below remains a historical design record; the Phase 5A and Phase 5B implementations are documented separately at the end.
 
 There are concrete integration omissions to fix **within the respective mode phase, before enabling its network whitelist**:
 
@@ -973,7 +973,7 @@ No Phase 4B.3 gameplay depends on a viewport: GameMode resolves server-side, con
 
 ## Phase 5A — Ghost Networking
 
-**Implemented; user manual two-player PIE validation pending.** Continues from accepted architecture-review commit `a387d2b60373fceaddb75ce61856f026716f275e`; Phase 4B.3 user PIE acceptance remains **PASSED**. Network Architecture Review v1's no-independent-pre-refactor conclusion is accepted and followed. Exactly one existing mode/card, **Ghost**, is newly network-enabled; Tetris remains pending Phase 5B. No Core/Cards gameplay source, ten-card draw pool, assets, config or session infrastructure changed.
+**Implemented; Phase 5A user manual PIE validation: PASSED** on `fe6645da55808f7b2c1e91879ad0baee71b1d3c6`, as reported by the user. The following records the accepted Phase 5A baseline; Phase 5B below extends Tetris availability. Continues from accepted architecture-review commit `a387d2b60373fceaddb75ce61856f026716f275e`; Phase 4B.3 user PIE acceptance remains **PASSED**. Network Architecture Review v1's no-independent-pre-refactor conclusion is accepted and followed. Exactly one existing mode/card, **Ghost**, is newly network-enabled; Tetris remains pending Phase 5B. No Core/Cards gameplay source, ten-card draw pool, assets, config or session infrastructure changed.
 
 ### Intent, lifecycle and transport privacy
 
@@ -1007,7 +1007,7 @@ New `Gomokards.Phase5A.GhostTransportAuthorityAndLifecycle` exercises assigned o
 
 Static review: hidden true colors are removed in the server projection function; full `FMatchState` and RNG remain unreplicated; timer transitions publish snapshots; ordinary placement RPC is reused; no mode framework, Tetris RPC/pose/operator networking, OnlineSubsystem, packaging or session-provider work was added. Agent validation is source/reflection and in-process server/projection testing, not real remote packet capture or hands-on PIE. No agent-driven gameplay occurred. Generated build/log/report/cache files remain excluded from the commit.
 
-### Deterministic Manual PIE Validation Checklist — user pending
+### Deterministic Manual PIE Validation Checklist — user passed (retained for regression)
 
 Use `/Game/Maps/LocalMatch`, two players, **Play As Listen Server**, with a fresh authoritative **`?Seed=182`** session. Reuse the existing in-editor launch override:
 
@@ -1045,4 +1045,91 @@ After 12 placements Black owns `[Confusion, Restock]`, White owns `[Ghost]`, and
 5. **Restart:** repeat the fresh seeded acquisition and activation, then use the authorized Host development restart during Preparation. Board/hands/effects reset; waiting beyond the old deadline must not reactivate Ghost. Repeat with disconnect during Preparation if checking lifecycle behavior; remaining player shows SessionEnded without a winner. A new session is required afterward.
 6. **Regression:** original eight cards still work in ordinary mode. If Tetris is held, it stays visible but disabled; the retained `5751` recipe obtains it deterministically. No Tetris controls or pose networking are present.
 
-**Phase 5A user manual PIE validation remains pending.** The explicit implementation request authorizes commit/push after agent checks with this checklist handed to the user. Tetris networking remains Phase 5B; physical two-PC LAN remains pending until a Development packaged build; Internet/session-provider work remains later. No package, LAN/Internet acceptance or malicious-host secrecy is claimed. Stop after Phase 5A.
+**Phase 5A user manual PIE validation: PASSED.** The user completed the two-player Ghost checklist on `fe6645da55808f7b2c1e91879ad0baee71b1d3c6` and reported all tested behavior passed. This is user hands-on validation, separate from the agent Automation results above. Tetris availability is superseded by Phase 5B below. Physical two-PC LAN still awaits a Development packaged build; Internet/session-provider work remains later. No LAN/Internet acceptance or malicious-host secrecy is claimed.
+
+
+## Phase 5B — Tetris Networking
+
+**Implemented; Phase 5B user manual PIE validation pending.** Continues from accepted Phase 5A implementation `fe6645da55808f7b2c1e91879ad0baee71b1d3c6`. The user's Ghost two-player PIE validation is **PASSED**. Network Architecture Review v1's no-pre-refactor conclusion remains accepted. All **ten** existing cards are now network-enabled; earlier phase statements that Tetris is disabled are historical. Core/Cards rules, draw pool, assets and config are unchanged.
+
+### Card intent and operator authority
+
+Tetris uses existing `ServerPlayCard` alongside Restock, Swap Hands, Steal, Confusion, Back to Basics and Ghost (seven non-targeted cards). Tactical Nuke, Polarity and Barrier remain the three targeted cards. Wrong-boundary and malformed IDs reject before mutation.
+
+One new explicit reliable Server RPC, `ServerTetrisInput(Epoch, ActivationToken, BlockNumber, EMatchTetrisInput Input)`, accepts only Up/Down/Left/Right/Rotate. The server checks assignment, Playing session, epoch, active mode, activation token, block number and **`Players[Tetris.OperatorIndex].Id`**, then invokes existing Core input validation. Neither ordinary current player nor Host status grants operator authority. The only hot-seat fallback is the existing explicitly initialized standalone/local-controller pattern; listen/dedicated sessions cannot use it. No client-supplied player/operator, pose, shape, color, gravity or timer values.
+
+A server-owned activation serial changes on each cast and reset. Epoch rejects old-match input, activation token rejects previous casts in the same match, and BlockNumber rejects delayed keys after a lock or skipped opportunity. Mode/session gates invalidate input after exit/disconnect. Keys do not use ordinary `bPending`, spend an action, or receive ordinary action acknowledgements: the authoritative pose is their result.
+
+### Public projection and publication
+
+The ordinary public DTO gains only **`bTetrisActive`**, coherent with board/result/effects/turn. Existing GameState gains one separately replicated **`FMatchTetrisPose`**:
+
+| Fields | Purpose |
+| --- | --- |
+| `bActive`, `Epoch`, `BoardRevision` | Whether this piece belongs to the displayed committed board |
+| `ActivationToken`, `PoseSequence`, `BlockNumber` | Current cast, latest pose and current opportunity |
+| `OperatorPlayerId`, `Shape`, `Rotation`, `Origin`, `SpawnEdge`, `Stone` | Current public piece and its controlling player; gravity derives from edge |
+
+Pose contains no full board, private hand, RNG, future shape/spawn or deadline. No private-hand or acknowledgement field was added. The server retains full `FMatchState`, assignments, RNG and timer state.
+
+- **Pose-only:** accepted translation/rotation or unblocked automatic gravity publishes just the pose and advances PoseSequence. Normal Revision, all 361 public cells and both private hand projections remain unchanged. No ordinary actions/rewards/Confusion progression. Slate invalidates board painting without rebuilding hand buttons for these notifications.
+- **Full commit:** activation, automatic lock/clear/next block/skips/exit publish one normal Revision, the board/result/mode gate and both private projections at that Revision, then pose referencing the new BoardRevision. Gravity compares pre/post opportunity, active flag and committed board; the Core step's boolean alone is not treated as a lock signal.
+- **Arrival order:** controller retains only the latest epoch/activation/pose sequence. It renders a piece only when public/private snapshots are coherent and pose Epoch/BoardRevision match. Future pose waits; newer board suppresses old piece. Coalesced sequences require no intermediate frames. An inactive public gate or ended session immediately suppresses stale active pose; no reconstruction or prediction.
+- **Host refresh:** both public and pose publication explicitly invoke local refresh as well as RepNotify for remote clients. No separate Tetris actor, manager or mode framework.
+
+### Preserved gameplay and rendering
+
+Tetris card consumption, one CompletedActions increment, one ordinary turn transfer and one existing Confusion decrement happen through the unchanged common resolver. First operator is the caster's opponent. Six opportunities alternate operators; each uses the opposite of its operator's assigned stone, ignoring Confusion. Movement/lock neither changes the ordinary player nor spends Confusion/RNG/rewards beyond the existing server spawn draws.
+
+Server retains its **0.5 real-second** gravity ticker. Absolute arrows remain absolute; the directly opposite gravity direction rejects (Top: Up; Bottom: Down; Left: Left; Right: Right). Successful gravity-direction input resets the deadline to server Now + 0.5; perpendicular movement and clockwise rotation preserve it. Rejection preserves all authoritative state, timer, Revision and PoseSequence. No wall kicks and no lock from blocked manual input. Only blocked automatic gravity locks.
+
+Existing six-shape/four-edge preferred-clearance/fallback RNG logic is unchanged. Impossible spawns skip opportunities, alternating operator without writing/clearing cells or inventing a top-out loss. An all-skipped cast publishes only its final inactive state. Lock clears qualifying connected same-color runs of five or more, respecting Barrier connectivity; forbidden flags and unrelated stones remain, with no collapse. Sixth completion clears first, exits, evaluates the global result and performs no extra ordinary transfer. If still InProgress, ordinary play resumes for the post-card player.
+
+Active Tetris bypasses the ordinary-capability SessionEnded guard because server gravity/operator input provides progress. After exit existing Core result/no-action semantics apply. Ordinary placement and both card RPC boundaries reject during Tetris; UI disables these interactions and clears targeting. Basics prevents activation; Ghost and Tetris do not combine.
+
+Projected Slate rendering shows committed stones as squares while active and the current piece as colored squares with an amber border in both windows. On exit, committed stones return to round rendering. Status shows opportunity N/6, operator identity/stone, block color, edge/gravity and controls. Only the operator's local controller sends keys. Geometry uses the existing pure offset/key helpers; Slate never accesses GameMode or creates a client match state.
+
+Restart cancels gravity, changes epoch/token and publishes inactive pose with reset state. Disconnect cancels gravity and publishes SessionEnded/inactive pose without inventing a winner. Old generations cannot commit; existing EndPlay/BeginDestroy cancellation remains intact.
+
+### Agent validation and static review
+
+Unreal **5.8.2 Win64 Development Editor build PASSED**. The complete exported `Saved/Automation/Phase5BFinal/index.json` was inspected: **50 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in process**. All test entries report Success with zero warning/error counts. No agent-driven gameplay was performed.
+
+The original **49 Automation groups are retained**; existing whitelist/reflection fixtures are updated for Tetris enablement and the one additional public pose property. New `Gomokards.Phase5B.TetrisAuthorityPoseAndLifecycle` covers card restrictions/malformed IDs; both seat mappings and operator alternation; stale epoch/cast/block keys; four-edge rejection and timer invariance; clockwise/no-kick rotation and Barrier non-collision; pose-only versus full commits; exact Core state/RNG parity over six opportunities; line clears and preserved forbidden cells; skipped/fallback spawns and global outcomes; board/private/pose arrival orders and stale/coalesced sequences; same-match recast, reset/disconnect/EndPlay; and the deterministic recipe below. Prior Ghost transport-redaction/timer/reveal tests remain included.
+
+Static review confirms the only client mode-input path is the typed controller RPC; server-only Core/gravity/spawn/result authority, no prediction, no full snapshot on pose-only moves, matching board/pose revisions on locks, unchanged owner-only hand transport, and no Slate-to-GameMode route. Config/assets remain unchanged and existing map/GameMode references are retained. These are source/reflection and in-process Automation checks, not actual two-window gameplay, packet capture, LAN or Internet validation. Generated/cache/build/report files are excluded from the commit.
+
+### Deterministic Manual PIE Validation Checklist — user pending
+
+Use `/Game/Maps/LocalMatch`, **2 players / Play As Listen Server**. Begin a fresh **`?Seed=5751`** session using the existing seed mechanism:
+
+```text
+UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=5751"
+```
+
+Stop/start PIE to repeat this seed. Development Restart randomizes it, so do not use Restart during card acquisition. Follow player identities shown in each window, rather than assuming window order. Coordinates are zero-based from top-left; each pair is Black then White.
+
+| Pair | Black | White |
+| --- | --- | --- |
+| 1 | `(5,5)` | `(6,5)` |
+| 2 | `(0,0)` | `(7,5)` |
+| 3 | `(8,5)` | `(1,0)` |
+| 4 | `(9,9)` | `(10,9)` |
+| 5 | `(12,12)` | `(11,9)` |
+| 6 | `(12,9)` | `(5,12)` |
+| 7 | `(6,12)` | `(0,18)` |
+| 8 | `(7,12)` | `(8,12)` |
+
+After 16 placements Black has `[Restock, Steal]`, White `[Swap Hands, Tetris]`. **Black places `(17,17)`**, then **White plays Tetris**. Do not use Restock or Swap for this recipe. Actions become 18, ordinary turn becomes Black, and Black operates first. Initial block: **T shape, Top edge, Down gravity, origin `(13,0)`, White block color**; gravity may already move it before the first visible frame. Subsequent shapes/edges depend on how the board develops under your movement. Automation verifies that leaving all six blocks to automatic gravity completes all six opportunities and resumes nonterminal Black play.
+
+1. **Start/acquire/activate:** both Listen Server and Client create UI and agree on the opening, private cards/counts and turn. White's Tetris consumes exactly one action and transfers the ordinary turn once to Black.
+2. **Matching presentation:** both windows show identical active shape, position, color, edge and operator. Committed stones are square; active cells have the distinct border.
+3. **Operator controls:** only the currently named operator's window moves/rotates the piece. Try keys from the other window and observe no change. Over six blocks verify both Host and remote Client become operators, alternating Black/White while the ordinary current player remains Black.
+4. **Absolute arrows:** for each encountered edge, its opposite-gravity key does nothing. Gravity-direction and both perpendicular keys move when space exists. Space rotates clockwise when space exists; no wall kick. All four orientations are covered automatically even if this manual run does not encounter them all.
+5. **Gravity/locking:** manual input into an obstacle does not lock. Releasing input allows the blocked automatic tick to lock. A successful soft drop postpones the next automatic tick by roughly 0.5 seconds rather than immediately double-stepping; perpendicular/rotation do not restart that interval. Compare both windows.
+6. **Ordinary freeze:** board clicks, card buttons and targeting cannot perform ordinary actions while active. Key movement does not increase Actions, change hand counts or consume a remaining Confusion effect. Confusion interaction is also covered automatically; no extra manual acquisition is required.
+7. **Commit/exit:** both windows agree on each locked board/new piece. After six opportunities, no falling shape remains; committed stones become round, result/turn agree, with no extra ordinary action/transfer. With the hands-off recipe Black can place `(18,0)` normally. If you steer differently and reach a terminal result, verify the shared result and rejection of further ordinary actions instead.
+8. **Lifecycle:** replay acquisition, activate and use authorized Host development restart while falling. Both views reset and remain free of stale pieces after the old deadline. Replay and disconnect during Tetris: remaining window enters SessionEnded without continued falling/locks or an invented winner.
+9. **Regression:** repeat accepted Ghost `182` and prior card recipes as needed. All ten cards are now enabled through their correct boundaries, including Tetris in the old `5751` recipe. Line-clear/Barrier/fallback/terminal cases have automated fixtures; the user need not engineer those positions manually.
+
+**Phase 5B user manual PIE validation: PENDING.** Agent performed no hands-on gameplay. The implementation request explicitly authorizes this focused commit/push with manual validation handed to the user. After Phase 5B manual acceptance, the next phase is a Development packaged build, followed by physical two-PC LAN validation (still pending). Internet/session-provider infrastructure remains later. Reliable server input has no prediction/interpolation; evaluate actual network feel before adding latency machinery. No packaging, LAN, Internet, reconnect/spectator protocol or malicious-host confidentiality is claimed here. Stop after Phase 5B.
