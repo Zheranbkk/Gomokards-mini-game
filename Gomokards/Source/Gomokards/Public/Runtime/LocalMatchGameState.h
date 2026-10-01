@@ -22,4 +22,5 @@ private:
     friend class FBasicCardNetworkTest;
     friend class FTargetedCardNetworkTest;
     friend class FPersistentCardNetworkTest;
+    friend class FGhostNetworkTest;
 };

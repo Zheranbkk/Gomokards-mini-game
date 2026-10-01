@@ -9,7 +9,9 @@ FMatchPublicView MakePublicView(const Gomokards::FMatchState& State, const TArra
     for (const auto& Cell : State.Board.Cells)
     {
         FMatchDisplayCell Display;
-        Display.Stone=static_cast<uint8>(Cell.Stone); Display.bForbidden=Cell.bForbidden;
+        Display.Stone=State.GhostPhase==Gomokards::EGhostPhase::Hidden && Cell.Stone!=Gomokards::EStone::Empty
+            ? uint8(EMatchDisplayStone::HiddenOccupied) : static_cast<uint8>(Cell.Stone);
+        Display.bForbidden=Cell.bForbidden;
         View.Cells.Add(Display);
     }
     View.Barriers=State.Board.Barriers;
@@ -25,6 +27,8 @@ FMatchPublicView MakePublicView(const Gomokards::FMatchState& State, const TArra
     View.Result=static_cast<uint8>(State.Result.Status); View.WinningStone=static_cast<uint8>(State.Result.WinningStone);
     View.DecisionReason=static_cast<uint8>(State.Result.Decision);
     View.bCardsDisabled=State.bCardsDisabled; View.ConfusionRemaining=State.ConfusionActionsRemaining;
+    View.GhostPhase=static_cast<EMatchGhostPhase>(State.GhostPhase);
+    View.GhostPlacementsCompleted=State.GhostPlacementsCompleted;
     return View;
 }
 FMatchPrivateView MakePrivateView(const Gomokards::FMatchState& State, int32 PlayerId, bool bAdmin, uint64 Epoch, uint64 Revision)
@@ -45,7 +49,7 @@ bool IsNetworkCardEnabled(uint8 CardId)
 {
     using Gomokards::ECardId;
     return CardId==uint8(ECardId::Restock) || CardId==uint8(ECardId::SwapHands) || CardId==uint8(ECardId::Steal)
-        || CardId==uint8(ECardId::Confusion) || CardId==uint8(ECardId::BackToBasics);
+        || CardId==uint8(ECardId::Confusion) || CardId==uint8(ECardId::BackToBasics) || CardId==uint8(ECardId::Ghost);
 }
 
 bool IsTargetedNetworkCardEnabled(uint8 CardId)

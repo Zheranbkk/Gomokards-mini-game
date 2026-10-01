@@ -30,6 +30,7 @@ public:
     void RequestDevelopmentRestart();
     void RefreshPresentation();
     FString StatusLabel() const;
+    FString GhostStatusLabel() const;
     FMatchPresentationChanged OnPresentationChanged;
 
     UFUNCTION(Server, Reliable) void ServerPlaceStone(uint64 Epoch, uint64 ExpectedCompletedActions, int32 X, int32 Y);
@@ -57,4 +58,5 @@ private:
     friend class FBasicCardNetworkTest;
     friend class FTargetedCardNetworkTest;
     friend class FPersistentCardNetworkTest;
+    friend class FGhostNetworkTest;
 };

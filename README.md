@@ -789,7 +789,7 @@ Polarity terminal wins/draws are explicitly covered by Automation; the manual pa
 
 ## Phase 4B.3 — Persistent rule-state card networking
 
-**Implemented; agent automated validation PASSED; Phase 4B.3 user manual PIE validation: PASSED.** Continues from `e68b41dc355c8b310d07be862314f8f48c906fcd`. Phase 4B.2 user two-player PIE validation remains **PASSED** on implementation `b6e1b49534e7d65025c4908a6fe88a7f1523d137`. This phase enables exactly **Confusion and Back to Basics**, bringing network-enabled cards to eight. Ghost and Tetris remain visible when held but network-disabled. The full ten-card draw pool and probabilities are unchanged.
+**Implemented; agent automated validation PASSED; Phase 4B.3 user manual PIE validation: PASSED.** Continues from `e68b41dc355c8b310d07be862314f8f48c906fcd`. Phase 4B.2 user two-player PIE validation remains **PASSED** on implementation `b6e1b49534e7d65025c4908a6fe88a7f1523d137`. This section records the accepted Phase 4B.3 baseline; Phase 5A below extends availability. This phase enables exactly **Confusion and Back to Basics**, bringing network-enabled cards to eight. Ghost and Tetris remain visible when held but network-disabled. The full ten-card draw pool and probabilities are unchanged.
 
 ### Authoritative rules and the clarified Basics change
 
@@ -858,7 +858,7 @@ Coordinates are zero-based from the top-left. Each row is Black then White. **Re
 4. Black plays Back to Basics: both show **Basics on / Confusion 0**; the forbidden point, removed stone, Barrier and all other stones remain unchanged. The normal turn passes once to White.
 5. White places `(8,9)`: a normal **White** stone earns a new Confusion from blocking. Black places `(17,17)`. On White's turn that Confusion is visible but disabled; clicking it changes nothing. Server-side crafted card rejection is covered automatically. Ordinary placement remains available.
 
-Also repeat the retained Phase 4B.1 `5751` and Phase 4B.2 `1294` recipes as a regression check for Restock/Swap/Steal and Nuke/Polarity/Barrier, including targeting and continued placement. Ghost/Tetris, whenever held, remain visible but network-disabled. Automation covers retained Polarity history and terminal outcomes without requiring additional engineered manual fixtures.
+Also repeat the retained Phase 4B.1 `5751` and Phase 4B.2 `1294` recipes as a regression check for Restock/Swap/Steal and Nuke/Polarity/Barrier, including targeting and continued placement. For current regression after Phase 5A, Ghost is enabled and only Tetris remains network-disabled. Automation covers retained Polarity history and terminal outcomes without requiring additional engineered manual fixtures.
 
 **Phase 4B.3 user manual PIE validation: PASSED.** The checklist is retained for regression checks. Physical two-PC LAN validation remains pending until the first Development packaged build. Ghost/Tetris networking and Phase 4C Internet/session infrastructure remain unimplemented. No LAN/Internet validation or malicious-host confidentiality is claimed. Stop at Phase 4B.3.
 
@@ -888,7 +888,7 @@ Evidence: `MatchRules.cpp` functions `ValidateAction`, `ResolveAction`, `BeginGh
 
 ### Review recommendation: no separate pre-refactor
 
-**Decision A: no standalone structural refactor is required before Ghost.** Keep explicit mode fields/state machines in `FMatchState`, server runtime timers and deterministic Core transitions. This is a review recommendation; the future transport designs and phases below are proposals, not user-accepted implementation or claims of working networking.
+**Decision A: no standalone structural refactor is required before Ghost.** Keep explicit mode fields/state machines in `FMatchState`, server runtime timers and deterministic Core transitions. The user accepted this no-pre-refactor conclusion for Phase 5A. The review below remains a historical design record; the Phase 5A implementation is documented separately at the end, while Phase 5B remains a proposal.
 
 There are concrete integration omissions to fix **within the respective mode phase, before enabling its network whitelist**:
 
@@ -969,3 +969,80 @@ No Phase 4B.3 gameplay depends on a viewport: GameMode resolves server-side, con
 
 - **Phase 5A scope/acceptance:** enable Ghost via ordinary card RPC, keep Tetris disabled; redacted public cells/phase/countdown; five-real-second server Preparation and coherent Hidden/reveal; same ordinary placement RPC. Automated transport-value tests must prove all occupied Hidden cells carry no true color in public/private/ack, including Confusion placements and unassigned observers; cover wrong/stale input, Preparation freeze, six placements/rewards, all reveal results, full-board/no-action behavior, both arrival orders, reset/disconnect/timer generations and eight-card regressions. Build/full Automation, then deterministic user two-window PIE checklist for memorization/freeze/gray cells/count/reveal/results/restart. A visual gray screenshot alone is not privacy evidence. Manual user pass remains the acceptance gate unless explicitly waived.
 - **Phase 5B scope/acceptance:** enable Tetris activation via ordinary RPC plus typed operator-input RPC and correlated public pose; server gravity only. Tests must cover reversed seats/White Host, every operator opportunity, stale keys from prior block/cast/epoch, all four gravity directions and opposite-input rejection/deadline invariance, rotation/collision, blocked automatic lock, clear/skip/exit/no-action results, unchanged ordinary action/Confusion on mode operations, preserved board effects, out-of-order pose/main/private/ack, lifecycle cleanup and all prior regressions. Build/full Automation, then deterministic user PIE for both operators, visual board/pose agreement, control/soft-drop timing and exit/restart. Follow with packaged two-PC LAN observation; do not claim prediction is necessary or LAN passed before observing it.
+
+
+## Phase 5A — Ghost Networking
+
+**Implemented; user manual two-player PIE validation pending.** Continues from accepted architecture-review commit `a387d2b60373fceaddb75ce61856f026716f275e`; Phase 4B.3 user PIE acceptance remains **PASSED**. Network Architecture Review v1's no-independent-pre-refactor conclusion is accepted and followed. Exactly one existing mode/card, **Ghost**, is newly network-enabled; Tetris remains pending Phase 5B. No Core/Cards gameplay source, ten-card draw pool, assets, config or session infrastructure changed.
+
+### Intent, lifecycle and transport privacy
+
+The existing reliable `ServerPlayCard(Epoch, ExpectedCompletedActions, CardId)` now accepts six non-targeted cards: Restock, Swap Hands, Steal, Confusion, Back to Basics and Ghost. Targeted RPC remains exactly Nuke/Polarity/Barrier. Ghost through targeted RPC, Tetris through either, and malformed IDs reject without mutation. No new RPC or client-supplied player ID, phase, color, timer or result was added. Existing server assignment/session/epoch/token validation and Core turn/ownership/lock checks remain authoritative.
+
+Ghost follows the unchanged Core sequence: card consumption, one completed action/normal transfer and old Confusion consumption enter Preparation; five real seconds later the server enters Hidden without a completed action; six successful ordinary placements use the same `ServerPlaceStone` path. Hidden placements use Core effective colors, rewards and Confusion progression. Placements 1–5 suppress line wins; placement 6 clears Ghost and performs existing global result evaluation, including Barrier connectivity. The final placement, possible reward, revealed board, phase exit, result, counts and turn are one committed revision, with both private hand views stamped to match. No separate reveal event or extra turn switch.
+
+`FMatchPublicView` gains only **GhostPhase, GhostPlacementsCompleted and GhostDisplayEndServerTime**. Display cells explicitly distinguish Empty/Black/White/**HiddenOccupied**; the display enum is separate from Core `EStone`. `MakePublicView` replaces every non-empty stone with HiddenOccupied during Hidden **before replication**, including pre-existing stones and Confusion-generated stones. Empty points, forbidden flags, Barriers, public seat identities and shared effect/count information remain public. The server retains the exact true board. Public cells are a lossy projection, not a gray overlay over transported true colors.
+
+**No owner-private or acknowledgement fields are added.** Neither carries board colors or RNG. A Hidden blocking reward gives exactly one card to the acting owner's private hand; the opponent sees only the accepted public count increase. Existing visibility through remembered Preparation colors or inference from public turns/Confusion is not erased; hostile listen-server memory inspection is outside scope. Newly unassigned clients receive the same redacted public board and no private hand, without adding spectator/reconnect support.
+
+### Timer publication, display and session availability
+
+The authoritative timer remains the existing weak Core ticker plus `FPlatformTime::Seconds()` five-real-second deadline/generation. At successful Preparation-to-Hidden transition, the callback now calls `PublishViews` before the retained local notification: one fresh revision and rebuilt public plus **both** private snapshots, even though hands/action count did not change. No client acknowledgement is generated for the timer transition. Reset, disconnect, EndPlay and destruction keep their existing timer cancellation/generation behavior.
+
+Preparation publication converts current remaining authoritative real duration into a **synchronized server-world-time display endpoint**. Controller display subtracts GameState's synchronized world time and clamps at zero; no raw monotonic timestamp is transported. Countdown text is locally evaluated, without per-frame replication. Displayed zero remains frozen/waiting until the server publishes Hidden. Pause/time-dilation are not supported gameplay features in this network slice; display approximation under stalls does not change authoritative real-time rules.
+
+The runtime capability guard now exempts Preparation because it awaits the server timer, rather than ending the session for lack of ordinary input. Hidden stays Playing while legal placements exist even though cards are restricted. Pathological no-progress behavior is explicit and unchanged in Core: if Hidden entry has zero legal points, the existing runtime guard ends the session with no invented Core winner/draw or early reveal; if a successful Hidden placement exhausts points before six, Core retains Hidden with `AwaitingRuleDecision/NoLegalAction`. Such stopped boards remain color-redacted until reset; no pass or new adjudication rule is introduced.
+
+### Projected presentation and coherence
+
+Slate reads public/private DTOs only. Preparation shows true visible colors, a memorization/countdown label and frozen gameplay controls; local board clicks send no intent. Server independently rejects crafted placement/non-targeted/targeted requests through existing Core errors. Hidden shows all occupied cells and the placement preview in neutral gray, remaining placement count and disabled card buttons; only ordinary current-player placement is enabled. Core still computes the real Confusion color; UI never reveals it in the Hidden preview. Unknown display bytes render transparent rather than accidentally White.
+
+Projection updates clear stale targeted-card selection without another action. Public/private epoch/revision matching continues to gate interaction. If a newer public Hidden snapshot arrives before private catch-up, the controller immediately masks the old visible display cache and disables interaction; it does not retain a true-color cache for reconstruction. Sixth-placement reveal waits for coherent public/private data and replaces the display from the server snapshot. Existing ordinary acknowledgement buffering/coalescing remains unchanged. No fake client `FMatchState`, direct Slate-to-GameMode call or client phase/result simulation.
+
+### Agent validation
+
+Unreal **5.8.2 Win64 Development Editor build PASSED**. The complete `Gomokards` Automation export (`Saved/Automation/Phase5A/index.json`) was inspected: **49 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in process**. All 48 existing tests remain, with only the expected whitelist/transport-inventory fixture updates; one Ghost integration test was added. An initial run exposed a lifecycle-test fixture lookup after simulated disconnect; the fixture was corrected, then the Editor target rebuilt and the complete suite rerun successfully.
+
+New `Gomokards.Phase5A.GhostTransportAuthorityAndLifecycle` exercises assigned ownership and reversed seats, Waiting/Ended/terminal/Basics/stale requests, exact RPC whitelists and malformed-byte rejection, Preparation freeze/countdown-zero behavior, deterministic pre-deadline/deadline publication without sleeping, transport-level redaction of both old colors and new Confusion stones, no private board data, unassigned-client privacy, Hidden legality/counts and private rewards, first-five win suppression, sixth-placement Black/White wins/Draw/Barrier-blocked continuation, arrival-order coherence and reveal, no-progress boards, seed 182 below, restart/disconnect/EndPlay stale callbacks. Existing privacy reflection checks retain the exact private/ack inventory and owner-only replication while allowing only the three new public fields.
+
+Static review: hidden true colors are removed in the server projection function; full `FMatchState` and RNG remain unreplicated; timer transitions publish snapshots; ordinary placement RPC is reused; no mode framework, Tetris RPC/pose/operator networking, OnlineSubsystem, packaging or session-provider work was added. Agent validation is source/reflection and in-process server/projection testing, not real remote packet capture or hands-on PIE. No agent-driven gameplay occurred. Generated build/log/report/cache files remain excluded from the commit.
+
+### Deterministic Manual PIE Validation Checklist — user pending
+
+Use `/Game/Maps/LocalMatch`, two players, **Play As Listen Server**, with a fresh authoritative **`?Seed=182`** session. Reuse the existing in-editor launch override:
+
+```text
+UnrealEditor.exe "<path-to-project>/Gomokards.uproject" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=182"
+```
+
+Do not press development Restart during acquisition because it randomizes the seed; stop/start PIE for a fresh deterministic replay. Coordinates are zero-based from top-left, each row Black then White:
+
+| Pair | Black | White |
+| --- | --- | --- |
+| 1 | `(5,5)` | `(6,5)` |
+| 2 | `(0,0)` | `(7,5)` |
+| 3 | `(8,5)` | `(1,0)` |
+| 4 | `(9,9)` | `(10,9)` |
+| 5 | `(12,12)` | `(11,9)` |
+| 6 | `(12,9)` | `(5,12)` |
+
+After 12 placements Black owns `[Confusion, Restock]`, White owns `[Ghost]`, and Black is current. Ghost is visible only in White's private hand and cannot be played on Black's turn.
+
+1. **Activation/freeze:** Black plays Confusion (count 2); White plays Ghost (count 1, Black next). Both windows show Preparation with true board colors and roughly matching five-second countdowns. Clicking the board or cards spends no action. At displayed zero, controls remain governed by the server's phase, not local time; the automation check covers that authority distinction.
+2. **Hidden:** all old stones turn gray in both windows. Hover shows gray, never Black/White; card controls remain disabled. An occupied or out-of-board click must leave action/count/turn unchanged.
+3. **Six placements:** play the sequence below. Both windows should count down 6 to 0, with normal alternating ownership. First move uses the remaining Confusion: Black's authoritative stone is White, but stays gray until reveal. It gives Black exactly one **Restock** reward, producing `[Restock, Restock]`; White sees Black's count rise to 2 without a card identity. Confusion becomes 0.
+
+| Hidden move | Player | Point | Color visible only after reveal |
+| --- | --- | --- | --- |
+| 1 | Black | `(8,9)` | White (Confusion) |
+| 2 | White | `(15,15)` | White |
+| 3 | Black | `(17,17)` | Black |
+| 4 | White | `(15,17)` | White |
+| 5 | Black | `(17,15)` | Black |
+| 6 | White | `(16,16)` | White |
+
+4. **Reveal/continue:** after move 6 both views reveal the complete true board with Ghost inactive, matching hand counts/result and Black to act. This recipe is nonterminal. Black can place `(18,0)` normally. Automated fixtures separately verify both winners, simultaneous Draw and Barrier-blocked reveal.
+5. **Restart:** repeat the fresh seeded acquisition and activation, then use the authorized Host development restart during Preparation. Board/hands/effects reset; waiting beyond the old deadline must not reactivate Ghost. Repeat with disconnect during Preparation if checking lifecycle behavior; remaining player shows SessionEnded without a winner. A new session is required afterward.
+6. **Regression:** original eight cards still work in ordinary mode. If Tetris is held, it stays visible but disabled; the retained `5751` recipe obtains it deterministically. No Tetris controls or pose networking are present.
+
+**Phase 5A user manual PIE validation remains pending.** The explicit implementation request authorizes commit/push after agent checks with this checklist handed to the user. Tetris networking remains Phase 5B; physical two-PC LAN remains pending until a Development packaged build; Internet/session-provider work remains later. No package, LAN/Internet acceptance or malicious-host secrecy is claimed. Stop after Phase 5A.

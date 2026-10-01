@@ -8,7 +8,10 @@ enum class EMatchSession : uint8 { WaitingForPlayers, Playing, SessionEnded };
 UENUM()
 enum class EMatchIntentError : uint8 { None, Unassigned, NotPlaying, StaleEpoch, StaleAction, Unauthorized, RuleRejected, CardNotNetworkEnabled };
 
-// Transport/display values only. Byte encodings follow the stable core enums; no core state is reflected.
+// Display encoding is independent of Core EStone: hidden occupancy never carries true color.
+enum class EMatchDisplayStone : uint8 { Empty, Black, White, HiddenOccupied };
+UENUM()
+enum class EMatchGhostPhase : uint8 { None, Preparation, Hidden };
 USTRUCT()
 struct GOMOKARDS_API FMatchDisplayCell
 {
@@ -39,6 +42,9 @@ struct GOMOKARDS_API FMatchPublicView
     UPROPERTY() uint8 DecisionReason = 0;
     UPROPERTY() bool bCardsDisabled = false;
     UPROPERTY() int32 ConfusionRemaining = 0;
+    UPROPERTY() EMatchGhostPhase GhostPhase = EMatchGhostPhase::None;
+    UPROPERTY() int32 GhostPlacementsCompleted = 0;
+    UPROPERTY() double GhostDisplayEndServerTime = 0;
     UPROPERTY() EMatchSession Session = EMatchSession::WaitingForPlayers;
     UPROPERTY() uint64 Epoch = 0;
     UPROPERTY() uint64 Revision = 0;

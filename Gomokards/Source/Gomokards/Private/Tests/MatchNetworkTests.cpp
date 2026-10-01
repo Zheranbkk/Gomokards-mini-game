@@ -59,7 +59,7 @@ bool FMatchReflectionTest::RunTest(const FString&)
         TestEqual(TEXT("Exact reflected field count, no extra secrets"),Actual.Num(),Expected.Num());
         for (auto Name : Actual) { TestTrue(*FString::Printf(TEXT("Approved reflected field %s.%s"),*Type->GetName(),*Name.ToString()),Expected.Contains(Name)); }
     };
-    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("ConfusionRemaining"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
+    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("ConfusionRemaining"),TEXT("GhostPhase"),TEXT("GhostPlacementsCompleted"),TEXT("GhostDisplayEndServerTime"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
     Fields(FMatchDisplayCell::StaticStruct(),{TEXT("Stone"),TEXT("bForbidden")});
     Fields(FMatchSeatView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("bOccupied"),TEXT("HandCount")});
     Fields(FMatchPrivateView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("Hand"),TEXT("bDevelopmentAdmin"),TEXT("Epoch"),TEXT("Revision")});

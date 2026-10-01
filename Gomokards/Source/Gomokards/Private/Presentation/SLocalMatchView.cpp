@@ -14,6 +14,20 @@
 
 using namespace Gomokards;
 
+namespace
+{
+FLinearColor DisplayStoneColor(uint8 Stone)
+{
+    switch (static_cast<EMatchDisplayStone>(Stone))
+    {
+    case EMatchDisplayStone::Black: return FLinearColor(.04f,.04f,.05f);
+    case EMatchDisplayStone::White: return FLinearColor(.94f,.94f,.9f);
+    case EMatchDisplayStone::HiddenOccupied: return FLinearColor(.45f,.45f,.45f);
+    default: return FLinearColor::Transparent;
+    }
+}
+}
+
 class SMatchBoard : public SLeafWidget
 {
 public:
@@ -49,7 +63,7 @@ public:
             else if (Cell.Stone != 0)
             {
                 FSlateDrawElement::MakeBox(Out, Layer+2, G.ToPaintGeometry(FVector2D(24), FSlateLayoutTransform(Center-FVector2D(12))), &StoneBrush,
-                    ESlateDrawEffect::None, Cell.Stone==1 ? FLinearColor(.04f,.04f,.05f) : FLinearColor(.94f,.94f,.9f));
+                    ESlateDrawEffect::None, DisplayStoneColor(Cell.Stone));
             }
         }
         const auto DrawBarrier = [&](FIntPoint Anchor, FLinearColor Color)
@@ -75,7 +89,7 @@ public:
         }
         else if (Target.IsSet() && Pinned->SelectedCard()==0 && Pinned->CanPlace(Target.GetValue()))
         {
-            FLinearColor Preview=Pinned->PreviewStone()==1 ? FLinearColor(.04f,.04f,.05f,.35f) : FLinearColor(.94f,.94f,.9f,.35f);
+            FLinearColor Preview=DisplayStoneColor(Pinned->PreviewStone()); Preview.A*=.35f;
             FSlateDrawElement::MakeBox(Out,Layer+5,G.ToPaintGeometry(FVector2D(24),FSlateLayoutTransform(FBoardLayout::Center(Target.GetValue())-FVector2D(12))),
                 &StoneBrush,ESlateDrawEffect::None,Preview);
         }
@@ -107,9 +121,11 @@ void SLocalMatchView::Construct(const FArguments& Args)
     [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
         [SNew(SVerticalBox)
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 4B.3"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
+            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 5A"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
             +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
             [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
+            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
+            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->GhostStatusLabel());}).ColorAndOpacity(FLinearColor(.7f,.8f,1))]
             +SVerticalBox::Slot().AutoHeight()
             [SNew(SHorizontalBox)
                 +SHorizontalBox::Slot().AutoWidth()
@@ -122,7 +138,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
                         .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Eight cards are playable, including Confusion and Back to Basics. Ghost and Tetris await a later phase.\nOnly your card contents are shown. Both hand counts are public.")))]
+                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("Nine cards are playable, including Ghost. Tetris awaits Phase 5B.\nOnly your card contents are shown. Both hand counts are public.")))]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
                     [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
                     +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
@@ -143,6 +159,7 @@ const FMatchPublicView& SLocalMatchView::GetPublicView() const { return Owner->G
 bool SLocalMatchView::CanPlace(FIntPoint Point) const { return Owner->CanPlace(Point); }
 uint8 SLocalMatchView::PreviewStone() const
 {
+    if (GetPublicView().GhostPhase==EMatchGhostPhase::Hidden) { return uint8(EMatchDisplayStone::HiddenOccupied); }
     const uint8 Stone=Owner->GetPrivateView().Stone;
     return GetPublicView().ConfusionRemaining>0 ? (Stone==1 ? 2 : 1) : Stone;
 }

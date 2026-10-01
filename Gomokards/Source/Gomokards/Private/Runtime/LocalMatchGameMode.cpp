@@ -72,7 +72,7 @@ bool ALocalMatchGameMode::PollGhostPreparation(double Now, uint64 Generation)
     if (Generation != GhostTimerGeneration) { return false; }
     if (Now < GhostDeadline) { return true; }
     CancelGhostPreparation();
-    if (Gomokards::BeginGhostHidden(Match)) { OnMatchChanged.Broadcast(); }
+    if (Gomokards::BeginGhostHidden(Match)) { PublishViews(); OnMatchChanged.Broadcast(); }
     return false;
 }
 double ALocalMatchGameMode::GhostPreparationSecondsRemaining() const
@@ -247,7 +247,8 @@ void ALocalMatchGameMode::PublishViews()
     if (bStandaloneSession && !Assignments.IsEmpty())
     { Occupied.Reset(); for (const auto& Player : Match.Players) { Occupied.Add(Player.Id); } }
     // End only when this slice exposes no remaining action; never invent a core draw.
-    if (bSessionInitialized && Session==EMatchSession::Playing && Match.Result.Status==Gomokards::EMatchStatus::InProgress)
+    if (bSessionInitialized && Session==EMatchSession::Playing && Match.Result.Status==Gomokards::EMatchStatus::InProgress
+        && Match.GhostPhase!=Gomokards::EGhostPhase::Preparation)
     {
         bool bPlaceExists=false;
         for (const auto& Cell : Match.Board.Cells)
@@ -257,7 +258,12 @@ void ALocalMatchGameMode::PublishViews()
         if (!bPlaceExists && !bCardExists) { Session=EMatchSession::SessionEnded; CancelGhostPreparation(); CancelTetrisGravity(); }
     }
     if (auto* GS=Cast<ALocalMatchGameState>(GameState))
-    { GS->Publish(MakePublicView(Match,Occupied,Session,MatchEpoch,Revision)); }
+    {
+        auto Public=MakePublicView(Match,Occupied,Session,MatchEpoch,Revision);
+        if (Match.GhostPhase==Gomokards::EGhostPhase::Preparation)
+        { Public.GhostDisplayEndServerTime=GS->GetServerWorldTimeSeconds()+GhostPreparationSecondsRemaining(); }
+        GS->Publish(Public);
+    }
     for (const auto& Pair : Assignments)
     {
         if (auto* PC=Pair.Key.Get())

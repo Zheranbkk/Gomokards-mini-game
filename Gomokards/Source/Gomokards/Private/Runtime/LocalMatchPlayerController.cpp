@@ -61,6 +61,15 @@ void ALocalMatchPlayerController::RefreshPresentation()
         {
             DisplayPublic=Public; DisplayPrivate=PrivateView; bCoherent=true;
         }
+        // A newer Hidden snapshot must mask the old display immediately, even before private catch-up.
+        // No true-color cache is retained for reveal; the coherent server snapshot replaces this view.
+        if (!bCoherent && Public.Epoch==DisplayPublic.Epoch && Public.Revision>DisplayPublic.Revision
+            && Public.GhostPhase==EMatchGhostPhase::Hidden)
+        {
+            for (auto& Cell : DisplayPublic.Cells)
+            { if (Cell.Stone!=uint8(EMatchDisplayStone::Empty)) { Cell.Stone=uint8(EMatchDisplayStone::HiddenOccupied); } }
+            DisplayPublic.GhostPhase=EMatchGhostPhase::Hidden;
+        }
         if (PendingAck.IsSet() && Public.Epoch>PendingAck->Epoch) { PendingAck.Reset(); bPending=false; }
     }
     if (bCoherent && PendingAck.IsSet() && PendingAck->Epoch==DisplayPublic.Epoch && PendingAck->Revision<=DisplayPublic.Revision)
@@ -91,14 +100,14 @@ bool ALocalMatchPlayerController::IsPresentationReady() const
 bool ALocalMatchPlayerController::CanPlace(FIntPoint Point) const
 {
     if (!IsPresentationReady() || bPending || DisplayPublic.Session!=EMatchSession::Playing || DisplayPublic.Result!=0 ||
-        DisplayPublic.CurrentPlayerId!=DisplayPrivate.PlayerId || Point.X<0 || Point.Y<0 || Point.X>=19 || Point.Y>=19) { return false; }
+        DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation || DisplayPublic.CurrentPlayerId!=DisplayPrivate.PlayerId || Point.X<0 || Point.Y<0 || Point.X>=19 || Point.Y>=19) { return false; }
     const auto& Cell=DisplayPublic.Cells[Point.Y*19+Point.X];
     return Cell.Stone==0 && !Cell.bForbidden;
 }
 bool ALocalMatchPlayerController::CanPlayCard(uint8 CardId) const
 {
     return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
-        !DisplayPublic.bCardsDisabled && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
         IsNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
 }
 void ALocalMatchPlayerController::RequestCard(uint8 CardId)
@@ -112,7 +121,7 @@ void ALocalMatchPlayerController::RequestCard(uint8 CardId)
 bool ALocalMatchPlayerController::CanTargetCard(uint8 CardId) const
 {
     return IsPresentationReady() && !bPending && DisplayPublic.Session==EMatchSession::Playing && DisplayPublic.Result==0 &&
-        !DisplayPublic.bCardsDisabled && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
+        !DisplayPublic.bCardsDisabled && DisplayPublic.GhostPhase==EMatchGhostPhase::None && DisplayPublic.CurrentPlayerId==DisplayPrivate.PlayerId &&
         IsTargetedNetworkCardEnabled(CardId) && DisplayPrivate.Hand.Contains(CardId);
 }
 void ALocalMatchPlayerController::ToggleTargeting(uint8 CardId)
@@ -147,8 +156,9 @@ bool ALocalMatchPlayerController::CanDevelopmentRestart() const
 { return IsPresentationReady() && !bPending && DisplayPrivate.bDevelopmentAdmin && DisplayPublic.Session==EMatchSession::Playing; }
 void ALocalMatchPlayerController::RequestPlace(FIntPoint Point)
 {
-    // Let the server explain wrong-turn/invalid-cell requests; only coherence and outstanding intent gate delivery.
-    if (!IsPresentationReady() || bPending) { return; }
+    // Preparation freezes local board input; the server independently rejects crafted requests.
+    // Otherwise let the server explain wrong-turn/invalid-cell requests.
+    if (!IsPresentationReady() || bPending || DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation) { return; }
     SelectedTargetedCard=0;
     bPending=true; Feedback=TEXT("Waiting for server...");
     ServerPlaceStone(DisplayPublic.Epoch,DisplayPublic.CompletedActions,Point.X,Point.Y);
@@ -206,4 +216,18 @@ FString ALocalMatchPlayerController::StatusLabel() const
     case EMatchStatus::AwaitingRuleDecision: return Identity+TEXT("Awaiting rule decision: no legal action.");
     default: return Identity+FString::Printf(TEXT("Current player: %d | Actions: %llu"),DisplayPublic.CurrentPlayerId,DisplayPublic.CompletedActions);
     }
+}
+
+FString ALocalMatchPlayerController::GhostStatusLabel() const
+{
+    if (!bCoherent) { return {}; }
+    if (DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation)
+    {
+        const auto* GS=GetWorld() ? GetWorld()->GetGameState<ALocalMatchGameState>() : nullptr;
+        const double Remaining=GS ? FMath::Max(0.0,DisplayPublic.GhostDisplayEndServerTime-GS->GetServerWorldTimeSeconds()) : 0.0;
+        return FString::Printf(TEXT("GHOST: Memorize the board - %.1fs. Gameplay frozen; waiting for server."),Remaining);
+    }
+    if (DisplayPublic.GhostPhase==EMatchGhostPhase::Hidden)
+    { return FString::Printf(TEXT("GHOST: Colors hidden - %d placements remaining. Cards unavailable."),6-DisplayPublic.GhostPlacementsCompleted); }
+    return {};
 }
