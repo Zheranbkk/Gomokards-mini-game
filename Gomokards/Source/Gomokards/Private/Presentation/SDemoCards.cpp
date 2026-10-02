@@ -8,32 +8,32 @@
 using namespace Gomokards;
 namespace
 {
-const FVector2D CardSize(176,238);
+const FVector2D CardSize(192,238);
 const FLinearColor DemoCardInk(.09f,.11f,.13f);
 void Box(FSlateWindowElementList& Out,int32 Layer,const FGeometry& G,FVector2D P,FVector2D Size,FLinearColor Color,const FSlateBrush* Brush=nullptr)
 { FSlateDrawElement::MakeBox(Out,Layer,G.ToPaintGeometry(Size,FSlateLayoutTransform(P)),Brush ? Brush : FCoreStyle::Get().GetBrush("WhiteBrush"),ESlateDrawEffect::None,Color); }
 void Text(FSlateWindowElementList& Out,int32 Layer,const FGeometry& G,FVector2D P,const FString& Value,int32 Size,FLinearColor Color=DemoCardInk)
-{ FSlateDrawElement::MakeText(Out,Layer,G.ToPaintGeometry(FVector2D(170,24),FSlateLayoutTransform(P)),Value,DemoFont(Size),ESlateDrawEffect::None,Color); }
+{ FSlateDrawElement::MakeText(Out,Layer,G.ToPaintGeometry(FVector2D(186,28),FSlateLayoutTransform(P)),Value,DemoFont(Size),ESlateDrawEffect::None,Color); }
 void Card(FSlateWindowElementList& Out,int32 Layer,const FGeometry& G,FVector2D P,uint8 Id,const FDemoCardArt& Art,bool Muted)
 {
     const auto* Info=DemoCard(Id); if (!Info) { return; }
     Box(Out,Layer,G,P+FVector2D(3,4),CardSize,FLinearColor(0,0,0,.2f));
     Box(Out,Layer+1,G,P,CardSize,Muted ? FLinearColor(.38f,.40f,.42f) : FLinearColor(.19f,.23f,.26f));
     Box(Out,Layer+2,G,P+FVector2D(2),CardSize-FVector2D(4),Muted ? FLinearColor(.80f,.80f,.77f) : FLinearColor(.98f,.97f,.91f));
-    Text(Out,Layer+3,G,P+FVector2D(9,10),Info->Name,14);
-    Box(Out,Layer+3,G,P+FVector2D(9,41),{158,72},FLinearColor::White,Art.Brush(Id));
+    Text(Out,Layer+3,G,P+FVector2D(9,10),Info->Name,18);
+    Box(Out,Layer+3,G,P+FVector2D(9,41),{174,72},FLinearColor::White,Art.Brush(Id));
     // Simple CJK-aware wrapping of this small frozen description, not a localization/layout framework.
     const auto Measure=FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-    const auto Font=DemoFont(11);
+    const auto Font=DemoFont(12);
     FString Line; float Y=121;
     for (TCHAR C : FString(Info->Description))
     {
         const FString Candidate=Line+FString::Chr(C);
-        if (!Line.IsEmpty() && Measure->Measure(Candidate,Font).X>158)
-        { Text(Out,Layer+3,G,P+FVector2D(9,Y),Line,11); Y+=16; Line.Reset(); }
+        if (!Line.IsEmpty() && Measure->Measure(Candidate,Font).X>174)
+        { Text(Out,Layer+3,G,P+FVector2D(9,Y),Line,12); Y+=18; Line.Reset(); }
         Line.AppendChar(C);
     }
-    if (!Line.IsEmpty()) { Text(Out,Layer+3,G,P+FVector2D(9,Y),Line,11); }
+    if (!Line.IsEmpty()) { Text(Out,Layer+3,G,P+FVector2D(9,Y),Line,12); }
 }
 }
 FDemoCardArt::FDemoCardArt()
@@ -62,9 +62,9 @@ int32 SDemoHand::Count() const
 }
 FVector2D SDemoHand::Position(int32 Index,float Width,bool Raised) const
 {
-    const int32 N=Count(); const float W=bOpponent ? 46.f : float(CardSize.X);
-    const float Step=N>1 ? FMath::Min(bOpponent ? 30.f : 136.f,FMath::Max(1.f,(Width-W-12)/(N-1))) : 0.f;
-    return {FMath::Max(6.f,(Width-W-Step*(N-1))*.5f)+Index*Step,bOpponent ? 3.f : Raised ? 4.f : 44.f};
+    const int32 N=Count(); const float W=bOpponent ? 96.f : float(CardSize.X);
+    const float Step=N>1 ? FMath::Min(bOpponent ? 62.f : 154.f,FMath::Max(1.f,(Width-W-12)/(N-1))) : 0.f;
+    return {FMath::Max(6.f,(Width-W-Step*(N-1))*.5f)+Index*Step,bOpponent ? 3.f : Raised ? 4.f : 36.f};
 }
 int32 SDemoHand::Hit(FVector2D P,float Width) const
 {
@@ -83,8 +83,8 @@ int32 SDemoHand::OnPaint(const FPaintArgs&,const FGeometry& G,const FSlateRect&,
         for (int32 I=0;I<Count();++I)
         {
             const auto P=Position(I,G.GetLocalSize().X,false);
-            Box(Out,Layer+I*2,G,P,{46,58},FLinearColor(.27f,.3f,.33f));
-            Box(Out,Layer+I*2+1,G,P+FVector2D(3),{40,52},FLinearColor(.68f,.70f,.72f),Art->Brush(0));
+            Box(Out,Layer+I*2,G,P,{96,119},FLinearColor(.27f,.3f,.33f));
+            Box(Out,Layer+I*2+1,G,P+FVector2D(3),{90,113},FLinearColor(.68f,.70f,.72f),Art->Brush(0));
         }
         return Layer+Count()*2;
     }

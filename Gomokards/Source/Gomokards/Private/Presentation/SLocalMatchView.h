@@ -5,6 +5,7 @@
 
 class ALocalMatchPlayerController;
 class SDemoHand;
+class SScrollBox;
 struct FDemoCardArt;
 class SLocalMatchView : public SCompoundWidget
 {
@@ -32,6 +33,8 @@ private:
     TSharedPtr<FDemoCardArt> Art;
     TSharedPtr<SDemoHand> OwnHand, OpponentHand;
     TSharedPtr<SWidget> BoardView;
+    TSharedPtr<SScrollBox> LogScroll;
+    FString LastLogText;
     FDelegateHandle ChangedHandle;
     uint64 HandEpoch = MAX_uint64, HandRevision = MAX_uint64;
 };

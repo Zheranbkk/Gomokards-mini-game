@@ -136,44 +136,38 @@ void SLocalMatchView::Construct(const FArguments& Args)
     Art=MakeShared<FDemoCardArt>();
     const auto* White=FCoreStyle::Get().GetBrush("WhiteBrush");
     const FLinearColor Ink(.09f,.11f,.13f), Panel(.93f,.93f,.90f);
-    static const FSlateRoundedBoxBrush TurnDot(FLinearColor::Black,6.f);
+    static const FSlateRoundedBoxBrush TurnDot(FLinearColor::Black,9.f);
     const auto SideRow=[this,Ink](uint8 Stone)
     {
         return SNew(SHorizontalBox)
             +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-            [SNew(STextBlock).Font(DemoFont(18)).ColorAndOpacity(Ink)
+            [SNew(STextBlock).Font(DemoFont(21)).ColorAndOpacity(Ink)
                 .Text_Lambda([this,Stone]{return FText::FromString(DemoSide(Stone)+(Owner->GetPrivateView().Stone==Stone ? TEXT("（你）") : TEXT("")));})]
             +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10,0)
-            [SNew(SBox).WidthOverride(12).HeightOverride(12)
+            [SNew(SBox).WidthOverride(18).HeightOverride(18)
                 [SNew(SImage).Image(&TurnDot).Visibility_Lambda([this,Stone]{return IsSideTurn(Stone) && bBlinkOn ? EVisibility::Visible : EVisibility::Hidden;})]];
     };
     ChildSlot
     [SNew(SBorder).Padding(0).BorderImage(White).BorderBackgroundColor(FLinearColor(.14f,.17f,.19f))
         [SNew(SScaleBox).Stretch(EStretch::ScaleToFit)
-            [SNew(SBox).WidthOverride(1600).HeightOverride(940)
-                [SNew(SBorder).Padding(16).BorderImage(White).BorderBackgroundColor(FLinearColor(.97f,.97f,.94f))
+            [SNew(SBox).WidthOverride(1920).HeightOverride(1112)
+                [SNew(SBorder).Padding(12).BorderImage(White).BorderBackgroundColor(FLinearColor(.97f,.97f,.94f))
                     [SNew(SVerticalBox)
                         +SVerticalBox::Slot().AutoHeight()
-                        [SNew(SBox).HeightOverride(28)
-                            [SNew(SHorizontalBox)
-                                +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font(DemoFont(18)).ColorAndOpacity(Ink).Text(FText::FromString(TEXT("GOMOKARDS")))]
-                                +SHorizontalBox::Slot().FillWidth(1).HAlign(HAlign_Right)
-                                [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());})]]]
+                        [SNew(SBox).HeightOverride(124)[SAssignNew(OpponentHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(true).FocusTarget(SharedThis(this))]]
                         +SVerticalBox::Slot().AutoHeight()
-                        [SNew(SBox).HeightOverride(64)[SAssignNew(OpponentHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(true).FocusTarget(SharedThis(this))]]
-                        +SVerticalBox::Slot().AutoHeight()
-                        [SNew(SBox).HeightOverride(540)
+                        [SNew(SBox).HeightOverride(700)
                             [SNew(SHorizontalBox)
-                                +SHorizontalBox::Slot().FillWidth(.24f).Padding(0,8,16,8)
+                                +SHorizontalBox::Slot().FillWidth(.23f).Padding(0,4,12,4)
                                 [SNew(SBorder).Padding(18).BorderImage(White).BorderBackgroundColor(Panel)
                                     [SNew(SVerticalBox)
-                                        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,18)
-                                        [SNew(STextBlock).Text(FText::FromString(TEXT("对局记录"))).Font(DemoFont(18)).ColorAndOpacity(Ink)]
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,12)
+                                        [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS\n对局记录"))).Font(DemoFont(21)).ColorAndOpacity(Ink)]
                                         +SVerticalBox::Slot().FillHeight(1)
-                                        [SNew(SScrollBox)+SScrollBox::Slot()
-                                            [SNew(STextBlock).Font(DemoFont(13)).ColorAndOpacity(Ink).AutoWrapText(true)
+                                        [SAssignNew(LogScroll,SScrollBox).Orientation(Orient_Vertical)+SScrollBox::Slot()
+                                            [SNew(STextBlock).Font(DemoFont(15)).ColorAndOpacity(Ink).WrapTextAt(345).AutoWrapText(true)
                                                 .Text_Lambda([this]{return FText::FromString(Owner->GetGameLog().Text());})]]]]
-                                +SHorizontalBox::Slot().FillWidth(.52f)
+                                +SHorizontalBox::Slot().FillWidth(.54f)
                                 [SNew(SOverlay)
                                     +SOverlay::Slot()
                                     [SNew(SScaleBox).Stretch(EStretch::ScaleToFit)
@@ -183,13 +177,17 @@ void SLocalMatchView::Construct(const FArguments& Args)
                                     [SNew(SBorder).Padding(32,20).BorderImage(White).BorderBackgroundColor(FLinearColor(.96f,.95f,.89f,.96f))
                                         .Visibility_Lambda([this]{return DemoResult(GetPublicView()).IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible;})
                                         [SNew(STextBlock).Font(DemoFont(28)).ColorAndOpacity(Ink).Text_Lambda([this]{return FText::FromString(DemoResult(GetPublicView()));})]]]
-                                +SHorizontalBox::Slot().FillWidth(.24f).Padding(16,8,0,8)
+                                +SHorizontalBox::Slot().FillWidth(.23f).Padding(12,4,0,4)
                                 [SNew(SBorder).Padding(14).BorderImage(White).BorderBackgroundColor(Panel)
                                     [SNew(SVerticalBox)
                                         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,5)[SideRow(2)]
                                         +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SideRow(1)]
                                         +SVerticalBox::Slot().AutoHeight()
-                                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink).AutoWrapText(true)
+                                        [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink).AutoWrapText(true)
+                                            .Visibility_Lambda([this]{return !Owner->IsPresentationReady() || GetPublicView().Session!=EMatchSession::Playing || GetPublicView().Result==uint8(EMatchStatus::AwaitingRuleDecision) ? EVisibility::Visible : EVisibility::Collapsed;})
+                                            .Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());})]
+                                        +SVerticalBox::Slot().AutoHeight()
+                                        [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink).AutoWrapText(true)
                                             .Text_Lambda([this]
                                             {
                                                 const auto& V=GetPublicView(); FString Label;
@@ -199,7 +197,7 @@ void SLocalMatchView::Construct(const FArguments& Args)
                                                 return FText::FromString(Label);
                                             })]
                                         +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,5)
-                                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink)
+                                        [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink)
                                             .Text_Lambda([this]
                                             {
                                                 if (SelectedCard()) { return FText::FromString(TEXT("待选择目标")); }
@@ -207,8 +205,10 @@ void SLocalMatchView::Construct(const FArguments& Args)
                                                 return FText::FromString(GetPublicView().LastPlayedCard ? TEXT("最近出牌") : TEXT(""));
                                             })]
                                         +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
-                                        [SNew(SDemoCard).Art(Art).Card_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard());})
-                                            .Visibility_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard()) ? EVisibility::Visible : EVisibility::Collapsed;})]
+                                        [SNew(SBox).WidthOverride(288).HeightOverride(357)
+                                            .Visibility_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard()) ? EVisibility::Visible : EVisibility::Collapsed;})
+                                            [SNew(SScaleBox).Stretch(EStretch::ScaleToFit)[SNew(SDemoCard).Art(Art).Card_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard());})
+                                            .Visibility_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard()) ? EVisibility::Visible : EVisibility::Collapsed;})]]]
                                         +SVerticalBox::Slot().FillHeight(1)[SNew(SSpacer)]
                                         +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,0)
                                         [SNew(SButton).IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
@@ -218,7 +218,8 @@ void SLocalMatchView::Construct(const FArguments& Args)
                         +SVerticalBox::Slot().AutoHeight()
                         [SNew(SBox).HeightOverride(244)[SAssignNew(OwnHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(false).FocusTarget(SharedThis(this))]]
                         +SVerticalBox::Slot().AutoHeight()
-                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink).Justification(ETextJustify::Center).AutoWrapText(true)
+                        [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink).Justification(ETextJustify::Center).AutoWrapText(true)
+                            .Visibility_Lambda([this]{return Owner->GetFeedback().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;})
                             .Text_Lambda([this]{return FText::FromString(Owner->GetFeedback());})]
                     ]]]]
     ];
@@ -251,6 +252,8 @@ uint8 SLocalMatchView::PreviewStone() const
 }
 void SLocalMatchView::Refresh()
 {
+    const FString CurrentLog=Owner->GetGameLog().Text();
+    if (CurrentLog!=LastLogText) { LastLogText=CurrentLog; LogScroll->ScrollToEnd(); }
     BoardView->Invalidate(EInvalidateWidgetReason::Paint);
     OwnHand->Invalidate(EInvalidateWidgetReason::Paint);
     OpponentHand->Invalidate(EInvalidateWidgetReason::Paint);

@@ -80,7 +80,7 @@ void ALocalMatchPlayerController::RefreshPresentation()
     {
         const auto Ack=PendingAck.GetValue(); PendingAck.Reset(); bPending=false;
         if (Ack.bAccepted)
-        { Feedback=Ack.bBlockingReward ? TEXT("成功阻挡，获得 1 张卡牌。") : TEXT("行动成功。"); }
+        { Feedback.Reset(); }
         else if (Ack.Error==EMatchIntentError::RuleRejected)
         { Feedback=Gomokards::RejectionLabel(static_cast<Gomokards::EActionError>(Ack.RuleError)); }
         else

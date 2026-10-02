@@ -1311,3 +1311,37 @@ $ProjectFile = Join-Path (Get-Location) 'Gomokards/Gomokards.uproject'
 ```
 
 This change adds **three .cpp files, two .h files and eleven binary .uasset textures**. Regenerate IDE project files if needed to show the new source files; UnrealBuildTool discovers them without that step. Do not routinely clear `Intermediate`/`Binaries`; a normal build/UHT handles these changes. Use the configured development drive for temporary files, caches and build logs. No new packaging or physical LAN execution is part of this UI task.
+
+## Demo UI Polish v0.1.1 — final pre-packaging visual pass
+
+The user manually inspected and tested v0.1 at `da06beb536cdac84876ce4208fc2ea568750d8ea` and reported normal gameplay/network interaction, including Phase 5B Tetris PIE. This acceptance supersedes the older pending notices above:
+
+- **Phase 5B user manual PIE validation: PASSED (user-performed).**
+- **Demo UI Polish v0.1 functional/manual interaction validation: PASSED (user-performed).**
+- **Demo UI v0.1.1 visual user acceptance: PENDING.**
+
+This small pass uses the original composition sketch and the user's actual v0.1 screenshot. Only presentation dimensions, text layout/visibility and routine feedback changed. No Core/gameplay/card rules, network state, replicated fields, RPCs, authority, privacy or assets changed. No new source files, frameworks or animation systems were added.
+
+### Visual adjustments
+
+- A 1920x1112 logical fit-to-window canvas and 700-unit board row replace 1600x940/540. At a typical 16:9 viewport, the displayed board is approximately **10% larger**, while its 19x19 drawing coordinates, hit testing, previews and centered result overlay remain unchanged. Outer padding falls from 16 to 12; panel gaps shrink. The brand moves into the log heading to free the redundant header row.
+- Opponent backs become **96x119**, exactly 50% of the local **192x238** card dimensions, with 62-unit overlapping steps. They are centered above the board, use the existing back texture and still have no identity or hover-detail path.
+- Local cards become wider (176 to 192 logical units), exposed steps increase from 136 to 154, title font increases from 14 to 18 and descriptions from 11 to 12 with wider wrapping. Normal/raised offsets are 36/4. Overall viewport fitting means this prioritizes title readability rather than increasing the entire local card's physical height; the raised card remains entirely within its 244-unit hand area, below the board. Existing hover, hit-test ordering, disabled inspection and click actions are preserved.
+- Removed the top-right ordinary identity/turn line. The right panel is the single identity/turn location. Waiting/synchronization/session-ended/rule-decision messages remain available there; the turn circle grows from 12 to 18 logical units and retains its visibility-toggle blink.
+- Right panel order remains player/turn, special status, current/recent card, restart. The card fits a **288x357** box, approximately **38% wider / 27% taller** on a typical 16:9 screen after canvas scaling (roughly 30–40% enlargement). Pending target > active Ghost/Tetris > recent accepted public play priority is unchanged. Status fonts compensate for the new canvas scale; the enlarged card leaves room for Tetris/Ghost text and Host restart.
+- The log explicitly scrolls vertically, wraps text within the panel and scrolls to the newest entry when its text changes. There is no horizontal scroll widget. Up to 12 entries remain internally; longer histories can be read by vertical scrolling, and new entries return the view to the bottom. Owner/public log privacy and snapshot logic are unchanged.
+- Accepted actions clear routine bottom feedback, including the duplicate success/reward notification already represented by board/hand/log changes. Empty feedback collapses. Actionable errors, target instructions, waiting messages and cancellation feedback remain. Frozen Chinese card strings, composite font and all eleven placeholder assets are untouched.
+
+### Validation and next step
+
+UE 5.8.2 Win64 Development Editor compilation **PASSED**. The exported full Gomokards Automation report was inspected: **53 passed, 0 failed, 0 test warnings, 0 skipped/not run**. All 53 existing groups were preserved without assertion changes; no pixel-value test suite was added. A graphical startup and external screenshot were attempted, but the process remained at the splash/default-engine-material shader compilation stage. The inspection process was stopped without gameplay input. The agent therefore does not claim a completed in-game visual check; the user checklist below remains required.
+
+Manual visual checklist (user):
+
+1. At a normal 16:9 size, verify the larger central board and tighter spacing; no card overlaps the board or clips the necessary controls.
+2. Verify portrait opponent backs, count-only privacy, identifiable own titles and a fully readable raised card, including unavailable cards.
+3. Verify no duplicate top-right turn text, a clearer blinking circle, readable special-mode text and a larger current/recent card with unchanged selection priority.
+4. Read/scroll the log: text wraps, no horizontal scrollbar, newest entries appear at the bottom, private acquisition identity remains private.
+5. Verify ordinary success leaves no persistent bottom message, while waiting/errors/target instructions remain visible. Check target cancellation, win/draw alignment and Host-only restart as a visual regression.
+
+Stop UI development after this pass. **Packaging is next only after the user accepts v0.1.1 visually.** No package was built in this pass. Physical two-machine LAN remains **PENDING**; Internet/session-provider work remains later. Existing sync/Development Editor commands above apply; no source regeneration or routine Intermediate/Binaries deletion is required.
