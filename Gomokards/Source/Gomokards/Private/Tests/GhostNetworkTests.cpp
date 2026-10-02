@@ -103,7 +103,7 @@ bool FGhostNetworkTest::RunTest(const FString&)
         TestTrue(TEXT("Before deadline unchanged"),GM->PollGhostPreparation(Deadline-.001,Generation) && GM->Match==Prep && GM->Revision==PrepRevision);
         // A displayed zero cannot cause any authoritative transition.
         Other->DisplayPublic.GhostDisplayEndServerTime=GS->GetServerWorldTimeSeconds()-1;
-        TestTrue(TEXT("Countdown zero is frozen display only"),Other->GhostStatusLabel().Contains(TEXT("0.0s")) && GM->Match==Prep && GM->Revision==PrepRevision);
+        TestTrue(TEXT("Countdown zero is frozen display only"),Other->GhostStatusLabel().Contains(TEXT("0.0 秒")) && GM->Match==Prep && GM->Revision==PrepRevision);
         TestFalse(TEXT("Deadline transitions once, retires ticker"),GM->PollGhostPreparation(Deadline,Generation));
         TestTrue(TEXT("Timer publishes one revision, no ordinary action or RNG change"),GM->Revision==PrepRevision+1 && GM->Match.CompletedActions==Prep.CompletedActions && GM->Match.Random.GetCurrentSeed()==Prep.Random.GetCurrentSeed() && GM->Match.Board==Prep.Board);
         CheckViews();

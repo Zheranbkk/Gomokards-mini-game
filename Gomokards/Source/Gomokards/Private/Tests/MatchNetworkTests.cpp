@@ -59,7 +59,7 @@ bool FMatchReflectionTest::RunTest(const FString&)
         TestEqual(TEXT("Exact reflected field count, no extra secrets"),Actual.Num(),Expected.Num());
         for (auto Name : Actual) { TestTrue(*FString::Printf(TEXT("Approved reflected field %s.%s"),*Type->GetName(),*Name.ToString()),Expected.Contains(Name)); }
     };
-    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("bTetrisActive"),TEXT("ConfusionRemaining"),TEXT("GhostPhase"),TEXT("GhostPlacementsCompleted"),TEXT("GhostDisplayEndServerTime"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
+    Fields(FMatchPublicView::StaticStruct(),{TEXT("Cells"),TEXT("Barriers"),TEXT("Seats"),TEXT("CurrentPlayerId"),TEXT("CompletedActions"),TEXT("LastPlayedCard"),TEXT("LastPlayedCardActor"),TEXT("LastPlayedCardAction"),TEXT("Result"),TEXT("WinningStone"),TEXT("DecisionReason"),TEXT("bCardsDisabled"),TEXT("bTetrisActive"),TEXT("ConfusionRemaining"),TEXT("GhostPhase"),TEXT("GhostPlacementsCompleted"),TEXT("GhostDisplayEndServerTime"),TEXT("Session"),TEXT("Epoch"),TEXT("Revision")});
     Fields(FMatchDisplayCell::StaticStruct(),{TEXT("Stone"),TEXT("bForbidden")});
     Fields(FMatchSeatView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("bOccupied"),TEXT("HandCount")});
     Fields(FMatchPrivateView::StaticStruct(),{TEXT("PlayerId"),TEXT("Stone"),TEXT("Hand"),TEXT("bDevelopmentAdmin"),TEXT("Epoch"),TEXT("Revision")});
@@ -199,7 +199,7 @@ bool FMatchNetworkTest::RunTest(const FString&)
     GM->RestartFrom(A,GM->MatchEpoch); Coherent();
     // This world intentionally has no AuthGameMode: client read/construction must not need it.
     TestNull(TEXT("Presentation world has no authoritative GameMode lookup"),World->GetAuthGameMode());
-    TestTrue(TEXT("Controller reads identity without GameMode"),B->StatusLabel().Contains(TEXT("Black")) && B->CanPlace({3,3}) && !A->CanPlace({3,3}));
+    TestTrue(TEXT("Controller reads identity without GameMode"),B->StatusLabel().Contains(TEXT("黑方")) && B->CanPlace({3,3}) && !A->CanPlace({3,3}));
     if (TestTrue(TEXT("Slate initialized for construction check"),FSlateApplication::IsInitialized()))
     {
         TSharedPtr<SLocalMatchView> View=SNew(SLocalMatchView).Owner(B);

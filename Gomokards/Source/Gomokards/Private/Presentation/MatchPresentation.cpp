@@ -115,19 +115,19 @@ FString RejectionLabel(EActionError Error)
 {
     switch (Error)
     {
-    case EActionError::TetrisActive: return TEXT("Tetris active: use arrow keys and Space; ordinary placement/cards are unavailable.");
-    case EActionError::GhostPreparation: return TEXT("Ghost preparation: gameplay is frozen until the countdown ends.");
-    case EActionError::GhostCardsRestricted: return TEXT("Cards cannot be played during Ghost Hidden.");
-    case EActionError::CardsDisabled: return TEXT("Cards are disabled by Back to Basics until restart.");
-    case EActionError::Occupied: return TEXT("That point is occupied. Choose another point.");
-    case EActionError::Forbidden: return TEXT("That point is forbidden by a Nuke.");
-    case EActionError::InvalidCoordinate: return TEXT("Choose an intersection inside the board.");
-    case EActionError::InvalidTarget: return TEXT("Choose a valid target: Nuke intersection, Polarity top-left, or Barrier cell center.");
-    case EActionError::MatchStopped: return TEXT("Match stopped. Use New Match.");
-    case EActionError::WrongPlayer: return TEXT("It is the other player's turn.");
-    case EActionError::CardNotOwned: return TEXT("That card is no longer in the active hand.");
-    case EActionError::UnsupportedCard: return TEXT("This card is not available in this slice.");
-    default: return TEXT("Action rejected; the match has not changed.");
+    case EActionError::TetrisActive: return TEXT("俄罗斯方块进行中，请使用方向键和空格。");
+    case EActionError::GhostPreparation: return TEXT("请记住棋盘，倒计时结束后继续。");
+    case EActionError::GhostCardsRestricted: return TEXT("隐藏阶段无法出牌。");
+    case EActionError::CardsDisabled: return TEXT("回归基本功：本局无法再出牌。");
+    case EActionError::Occupied: return TEXT("此处已有棋子。");
+    case EActionError::Forbidden: return TEXT("此处已被战术核弹封锁。");
+    case EActionError::InvalidCoordinate: return TEXT("请选择棋盘内的交点。");
+    case EActionError::InvalidTarget: return TEXT("目标无效，请重新选择。");
+    case EActionError::MatchStopped: return TEXT("对局已结束。");
+    case EActionError::WrongPlayer: return TEXT("当前不是你的回合。");
+    case EActionError::CardNotOwned: return TEXT("手中没有这张卡牌。");
+    case EActionError::UnsupportedCard: return TEXT("当前无法出牌。");
+    default: return TEXT("行动无效，局面未改变。");
     }
 }
 TOptional<ETetrisInput> TetrisInputForKey(const FKey& Key)

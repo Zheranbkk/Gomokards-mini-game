@@ -32,6 +32,7 @@ void ALocalMatchGameMode::StartWithSeed(int32 Seed)
     CancelGhostPreparation();
     CancelTetrisGravity();
     Match.Reset(Seed);
+    LastPlayedCard=0; LastPlayedCardActor=INDEX_NONE; LastPlayedCardAction=0;
     ++TetrisActivationToken; TetrisPoseSequence=0;
     ++MatchEpoch; Revision=0;
     PublishViews();
@@ -44,6 +45,8 @@ Gomokards::FActionResult ALocalMatchGameMode::Submit(const Gomokards::FActionReq
     const auto Result = Gomokards::ResolveAction(Match, Request);
     if (Result.IsAccepted())
     {
+        if (Request.Type==Gomokards::EActionType::PlayCard)
+        { LastPlayedCard=uint8(Request.Card); LastPlayedCardActor=Request.Player; LastPlayedCardAction=Match.CompletedActions; }
         if (Match.GhostPhase == Gomokards::EGhostPhase::Preparation) { ScheduleGhostPreparation(); }
         if (Request.Type==Gomokards::EActionType::PlayCard && Request.Card==Gomokards::ECardId::Tetris)
         { ++TetrisActivationToken; TetrisPoseSequence=0; }
@@ -271,6 +274,7 @@ void ALocalMatchGameMode::PublishViews()
     if (auto* GS=Cast<ALocalMatchGameState>(GameState))
     {
         auto Public=MakePublicView(Match,Occupied,Session,MatchEpoch,Revision);
+        Public.LastPlayedCard=LastPlayedCard; Public.LastPlayedCardActor=LastPlayedCardActor; Public.LastPlayedCardAction=LastPlayedCardAction;
         if (Match.GhostPhase==Gomokards::EGhostPhase::Preparation)
         { Public.GhostDisplayEndServerTime=GS->GetServerWorldTimeSeconds()+GhostPreparationSecondsRemaining(); }
         GS->Publish(Public);

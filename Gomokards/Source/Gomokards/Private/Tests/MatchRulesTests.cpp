@@ -6,7 +6,7 @@ namespace Gomokards
 {
 namespace
 {
-constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
+constexpr EAutomationTestFlags MatchRulesFlags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 FPlayerId Current(const FMatchState& State) { return State.Players[State.CurrentPlayerIndex].Id; }
 FActionResult Place(FMatchState& State, FIntPoint P) { return ResolveAction(State, FActionRequest::Place(Current(State), P)); }
 FActionResult Play(FMatchState& State, ECardId Id, TOptional<FIntPoint> P = {})
@@ -22,7 +22,7 @@ void RejectUnchanged(FAutomationTestBase& Test, FMatchState& State, const FActio
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchBasics, "Gomokards.Phase1.MatchAndReset", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchBasics, "Gomokards.Phase1.MatchAndReset", MatchRulesFlags)
 bool FMatchBasics::RunTest(const FString& Parameters)
 {
     FMatchState State(73);
@@ -51,7 +51,7 @@ bool FMatchBasics::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInvalidActions, "Gomokards.Phase1.InvalidActionsAtomic", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInvalidActions, "Gomokards.Phase1.InvalidActionsAtomic", MatchRulesFlags)
 bool FInvalidActions::RunTest(const FString& Parameters)
 {
     FMatchState State(11);
@@ -83,7 +83,7 @@ bool FInvalidActions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBlockingMatrix, "Gomokards.Phase1.BlockingMatrix", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBlockingMatrix, "Gomokards.Phase1.BlockingMatrix", MatchRulesFlags)
 bool FBlockingMatrix::RunTest(const FString& Parameters)
 {
     const FIntPoint Rays[] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
@@ -134,7 +134,7 @@ bool FBlockingMatrix::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRepeatedBlocking, "Gomokards.Phase1.RepeatedBlocking", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRepeatedBlocking, "Gomokards.Phase1.RepeatedBlocking", MatchRulesFlags)
 bool FRepeatedBlocking::RunTest(const FString& Parameters)
 {
     FMatchState State(12);
@@ -149,7 +149,7 @@ bool FRepeatedBlocking::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWinMatrix, "Gomokards.Phase1.WinMatrixAndTerminal", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWinMatrix, "Gomokards.Phase1.WinMatrixAndTerminal", MatchRulesFlags)
 bool FWinMatrix::RunTest(const FString& Parameters)
 {
     for (FIntPoint Direction : {FIntPoint(1,0), FIntPoint(0,1), FIntPoint(1,1), FIntPoint(1,-1)})
@@ -188,7 +188,7 @@ bool FWinMatrix::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCardTransactions, "Gomokards.Phase1.CardTransactions", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCardTransactions, "Gomokards.Phase1.CardTransactions", MatchRulesFlags)
 bool FCardTransactions::RunTest(const FString& Parameters)
 {
     FMatchState Restock(123);
@@ -233,7 +233,7 @@ bool FCardTransactions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNukeTransactions, "Gomokards.Phase1.NukeTransactions", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNukeTransactions, "Gomokards.Phase1.NukeTransactions", MatchRulesFlags)
 bool FNukeTransactions::RunTest(const FString& Parameters)
 {
     for (EStone Existing : {EStone::Empty, EStone::Black, EStone::White})
@@ -257,7 +257,7 @@ bool FNukeTransactions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeterminism, "Gomokards.Phase1.DeterminismAndPool", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeterminism, "Gomokards.Phase1.DeterminismAndPool", MatchRulesFlags)
 bool FDeterminism::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Exactly ten playable definitions (Phase 3C pool)"), GetPlayableCards().Num(), 10);
@@ -274,7 +274,7 @@ bool FDeterminism::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoLegalAction, "Gomokards.Phase1.UnresolvedNoLegalAction", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoLegalAction, "Gomokards.Phase1.UnresolvedNoLegalAction", MatchRulesFlags)
 bool FNoLegalAction::RunTest(const FString& Parameters)
 {
     FMatchState State;

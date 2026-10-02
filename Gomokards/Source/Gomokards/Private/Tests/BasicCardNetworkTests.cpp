@@ -9,11 +9,11 @@
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
 {
-constexpr EAutomationTestFlags Flags=EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
+constexpr EAutomationTestFlags BasicCardNetworkTestsFlags=EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 template<typename T> bool SameProjection(const T& A,const T& B)
 { return T::StaticStruct()->CompareScriptStruct(&A,&B,0); }
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicCardContractTest,"Gomokards.Phase4B1.CardRpcAndWhitelist",Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicCardContractTest,"Gomokards.Phase4B1.CardRpcAndWhitelist",BasicCardNetworkTestsFlags)
 bool FBasicCardContractTest::RunTest(const FString&)
 {
     using namespace Gomokards;
@@ -36,7 +36,7 @@ bool FBasicCardContractTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicCardNetworkTest,"Gomokards.Phase4B1.CardAuthorityPrivacyAndCoherence",Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicCardNetworkTest,"Gomokards.Phase4B1.CardAuthorityPrivacyAndCoherence",BasicCardNetworkTestsFlags)
 bool FBasicCardNetworkTest::RunTest(const FString&)
 {
     using namespace Gomokards;
@@ -109,7 +109,7 @@ bool FBasicCardNetworkTest::RunTest(const FString&)
         Reject(A,GM->MatchEpoch,0,uint8(Card),EMatchIntentError::CardNotNetworkEnabled);
         TestFalse(TEXT("Cards outside the non-targeted whitelist cannot use basic input"),A->CanPlayCard(uint8(Card)));
         auto Ack=GM->CardFrom(A,GM->MatchEpoch,0,uint8(Card)); A->ClientActionResult_Implementation(Ack);
-        TestTrue(TEXT("Safe explanatory rejection feedback"),A->GetFeedback().Contains(TEXT("later phase")));
+        TestTrue(TEXT("Safe explanatory rejection feedback"),A->GetFeedback().Contains(TEXT("当前无法使用这张卡牌")));
     }
     // Deterministic parity for both seat mappings, including White development host.
     for (bool bReverse : {false,true})

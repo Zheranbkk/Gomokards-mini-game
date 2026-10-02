@@ -12,11 +12,11 @@
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
 {
-constexpr EAutomationTestFlags Flags=EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
+constexpr EAutomationTestFlags TargetedCardNetworkTestsFlags=EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 template<typename T> bool SameTargetProjection(const T& A,const T& B)
 { return T::StaticStruct()->CompareScriptStruct(&A,&B,0); }
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetedCardContractTest,"Gomokards.Phase4B2.TargetRpcAndGeometry",Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetedCardContractTest,"Gomokards.Phase4B2.TargetRpcAndGeometry",TargetedCardNetworkTestsFlags)
 bool FTargetedCardContractTest::RunTest(const FString&)
 {
     using namespace Gomokards;
@@ -58,7 +58,7 @@ bool FTargetedCardContractTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetedCardNetworkTest,"Gomokards.Phase4B2.AuthorityOutcomesAndLocalTargeting",Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetedCardNetworkTest,"Gomokards.Phase4B2.AuthorityOutcomesAndLocalTargeting",TargetedCardNetworkTestsFlags)
 bool FTargetedCardNetworkTest::RunTest(const FString&)
 {
     using namespace Gomokards;

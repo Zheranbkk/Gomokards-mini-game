@@ -2,6 +2,7 @@
 
 #include "GameFramework/PlayerController.h"
 #include "Runtime/MatchNetTypes.h"
+#include "Presentation/DemoPresentation.h"
 #include "LocalMatchPlayerController.generated.h"
 
 class SLocalMatchView;
@@ -15,6 +16,7 @@ public:
     const FMatchPublicView& GetPublicView() const { return DisplayPublic; }
     const FMatchPrivateView& GetPrivateView() const { return DisplayPrivate; }
     const FString& GetFeedback() const { return Feedback; }
+    const Gomokards::FDemoGameLog& GetGameLog() const { return GameLog; }
     bool IsPresentationReady() const;
     bool CanPlace(FIntPoint Point) const;
     bool CanPlayCard(uint8 CardId) const;
@@ -58,6 +60,8 @@ private:
     bool bPending = false;
     TOptional<FMatchActionAck> PendingAck;
     FString Feedback;
+    Gomokards::FDemoGameLog GameLog;
+    friend class FDemoNetworkTest;
     TSharedPtr<SLocalMatchView> MatchView;
     friend class ALocalMatchGameMode;
     friend class FMatchNetworkTest;

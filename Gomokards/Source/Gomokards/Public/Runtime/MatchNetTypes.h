@@ -59,6 +59,10 @@ struct GOMOKARDS_API FMatchPublicView
     UPROPERTY() TArray<FMatchSeatView> Seats;
     UPROPERTY() int32 CurrentPlayerId = INDEX_NONE;
     UPROPERTY() uint64 CompletedActions = 0;
+    // Only already accepted plays, never acquired or held card identities.
+    UPROPERTY() uint8 LastPlayedCard = 0;
+    UPROPERTY() int32 LastPlayedCardActor = INDEX_NONE;
+    UPROPERTY() uint64 LastPlayedCardAction = 0;
     UPROPERTY() uint8 Result = 0;
     UPROPERTY() uint8 WinningStone = 0;
     UPROPERTY() uint8 DecisionReason = 0;

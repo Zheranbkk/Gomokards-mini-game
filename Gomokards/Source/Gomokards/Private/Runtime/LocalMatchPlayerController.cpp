@@ -80,23 +80,24 @@ void ALocalMatchPlayerController::RefreshPresentation()
     {
         const auto Ack=PendingAck.GetValue(); PendingAck.Reset(); bPending=false;
         if (Ack.bAccepted)
-        { Feedback=Ack.bBlockingReward ? TEXT("Successful block: +1 card in your hand.") : TEXT("Server accepted."); }
+        { Feedback=Ack.bBlockingReward ? TEXT("成功阻挡，获得 1 张卡牌。") : TEXT("行动成功。"); }
         else if (Ack.Error==EMatchIntentError::RuleRejected)
         { Feedback=Gomokards::RejectionLabel(static_cast<Gomokards::EActionError>(Ack.RuleError)); }
         else
         {
             switch (Ack.Error)
             {
-            case EMatchIntentError::Unassigned: Feedback=TEXT("No gameplay seat assigned."); break;
-            case EMatchIntentError::NotPlaying: Feedback=TEXT("Session is not playing."); break;
-            case EMatchIntentError::CardNotNetworkEnabled: Feedback=TEXT("Card networking not available until a later phase."); break;
-            case EMatchIntentError::Unauthorized: Feedback=TEXT("Development restart is not authorized."); break;
-            default: Feedback=TEXT("Stale request rejected. Use the current view."); break;
+            case EMatchIntentError::Unassigned: Feedback=TEXT("尚未分配玩家位置。"); break;
+            case EMatchIntentError::NotPlaying: Feedback=TEXT("当前对局无法继续操作。"); break;
+            case EMatchIntentError::CardNotNetworkEnabled: Feedback=TEXT("当前无法使用这张卡牌。"); break;
+            case EMatchIntentError::Unauthorized: Feedback=TEXT("只有主机可以重新开始。"); break;
+            default: Feedback=TEXT("局面已更新，请重试。"); break;
             }
         }
     }
     if (PreviousEpoch!=DisplayPublic.Epoch || PreviousRevision!=DisplayPublic.Revision || !CanTargetCard(SelectedTargetedCard))
     { SelectedTargetedCard=0; }
+    if (bCoherent) { GameLog.Update(DisplayPublic,DisplayPrivate); }
     OnPresentationChanged.Broadcast();
 }
 bool ALocalMatchPlayerController::IsPresentationReady() const
@@ -118,7 +119,7 @@ void ALocalMatchPlayerController::RequestCard(uint8 CardId)
 {
     if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive) { return; }
     SelectedTargetedCard=0;
-    bPending=true; Feedback=TEXT("Waiting for server...");
+    bPending=true; Feedback=TEXT("等待服务器响应……");
     ServerPlayCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId);
     OnPresentationChanged.Broadcast();
 }
@@ -133,14 +134,14 @@ void ALocalMatchPlayerController::ToggleTargeting(uint8 CardId)
     if (SelectedTargetedCard==CardId) { CancelTargeting(); return; }
     if (!CanTargetCard(CardId)) { return; }
     SelectedTargetedCard=CardId;
-    Feedback=TEXT("Target selected locally. Choose a board target, or cancel without spending an action.");
+    Feedback=TEXT("请选择目标；按 Esc 或右键取消。");
     OnPresentationChanged.Broadcast();
 }
 void ALocalMatchPlayerController::CancelTargeting()
 {
     if (SelectedTargetedCard==0) { return; }
     SelectedTargetedCard=0;
-    Feedback=TEXT("Targeting cancelled. No action spent.");
+    Feedback=TEXT("已取消选择。");
     OnPresentationChanged.Broadcast();
 }
 void ALocalMatchPlayerController::RequestBoardClick(FIntPoint Point)
@@ -152,7 +153,7 @@ void ALocalMatchPlayerController::RequestTargetedCard(uint8 CardId, FIntPoint Ta
 {
     if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive) { return; }
     SelectedTargetedCard=0; // Rejection can be retried by selecting the card again.
-    bPending=true; Feedback=TEXT("Waiting for server...");
+    bPending=true; Feedback=TEXT("等待服务器响应……");
     ServerPlayTargetedCard(DisplayPublic.Epoch,DisplayPublic.CompletedActions,CardId,Target.X,Target.Y);
     OnPresentationChanged.Broadcast();
 }
@@ -164,7 +165,7 @@ void ALocalMatchPlayerController::RequestPlace(FIntPoint Point)
     // Otherwise let the server explain wrong-turn/invalid-cell requests.
     if (!IsPresentationReady() || bPending || DisplayPublic.bTetrisActive || DisplayPublic.GhostPhase==EMatchGhostPhase::Preparation) { return; }
     SelectedTargetedCard=0;
-    bPending=true; Feedback=TEXT("Waiting for server...");
+    bPending=true; Feedback=TEXT("等待服务器响应……");
     ServerPlaceStone(DisplayPublic.Epoch,DisplayPublic.CompletedActions,Point.X,Point.Y);
     OnPresentationChanged.Broadcast();
 }
@@ -172,7 +173,7 @@ void ALocalMatchPlayerController::RequestDevelopmentRestart()
 {
     if (!CanDevelopmentRestart()) { return; }
     SelectedTargetedCard=0;
-    bPending=true; Feedback=TEXT("Waiting for development restart...");
+    bPending=true; Feedback=TEXT("等待重新开始……");
     ServerDevelopmentRestart(DisplayPublic.Epoch);
     OnPresentationChanged.Broadcast();
 }
@@ -208,18 +209,15 @@ void ALocalMatchPlayerController::ClientActionResult_Implementation(FMatchAction
 FString ALocalMatchPlayerController::StatusLabel() const
 {
     using namespace Gomokards;
-    if (!bCoherent) { return TEXT("Synchronizing public board and private hand..."); }
-    if (DisplayPrivate.PlayerId==INDEX_NONE) { return TEXT("No gameplay seat available (two players only)."); }
-    const FString Identity=FString::Printf(TEXT("You: %s (ID %d) | "),*StoneLabel(static_cast<EStone>(DisplayPrivate.Stone)),DisplayPrivate.PlayerId);
-    if (DisplayPublic.Session==EMatchSession::WaitingForPlayers) { return Identity+TEXT("Waiting for second player."); }
-    if (DisplayPublic.Session==EMatchSession::SessionEnded) { return Identity+TEXT("Session ended. Start a new session to continue."); }
-    switch (static_cast<EMatchStatus>(DisplayPublic.Result))
-    {
-    case EMatchStatus::Won: return Identity+StoneLabel(static_cast<EStone>(DisplayPublic.WinningStone))+TEXT(" wins.");
-    case EMatchStatus::Draw: return Identity+TEXT("Draw: simultaneous wins.");
-    case EMatchStatus::AwaitingRuleDecision: return Identity+TEXT("Awaiting rule decision: no legal action.");
-    default: return Identity+FString::Printf(TEXT("Current player: %d | Actions: %llu"),DisplayPublic.CurrentPlayerId,DisplayPublic.CompletedActions);
-    }
+    if (!bCoherent) { return TEXT("正在同步对局……"); }
+    if (DisplayPrivate.PlayerId==INDEX_NONE) { return TEXT("没有可用的玩家位置。仅支持两位玩家。"); }
+    const FString Identity=DemoSide(DisplayPrivate.Stone)+TEXT("（你）  ·  ");
+    if (DisplayPublic.Session==EMatchSession::WaitingForPlayers) { return Identity+TEXT("等待另一位玩家加入……"); }
+    if (DisplayPublic.Session==EMatchSession::SessionEnded) { return TEXT("对方已离开，对局结束。请开启新对局。"); }
+    const auto Result=DemoResult(DisplayPublic);
+    if (!Result.IsEmpty()) { return Result; }
+    if (DisplayPublic.Result==uint8(EMatchStatus::AwaitingRuleDecision)) { return TEXT("当前无合法行动，对局已暂停。"); }
+    return Identity+TEXT("轮到")+DemoSide(DemoPlayerStone(DisplayPublic,DisplayPublic.CurrentPlayerId));
 }
 
 FString ALocalMatchPlayerController::GhostStatusLabel() const
@@ -229,10 +227,10 @@ FString ALocalMatchPlayerController::GhostStatusLabel() const
     {
         const auto* GS=GetWorld() ? GetWorld()->GetGameState<ALocalMatchGameState>() : nullptr;
         const double Remaining=GS ? FMath::Max(0.0,DisplayPublic.GhostDisplayEndServerTime-GS->GetServerWorldTimeSeconds()) : 0.0;
-        return FString::Printf(TEXT("GHOST: Memorize the board - %.1fs. Gameplay frozen; waiting for server."),Remaining);
+        return FString::Printf(TEXT("幽灵棋子\n记住棋盘 · %.1f 秒\n暂时无法行动"),Remaining);
     }
     if (DisplayPublic.GhostPhase==EMatchGhostPhase::Hidden)
-    { return FString::Printf(TEXT("GHOST: Colors hidden - %d placements remaining. Cards unavailable."),6-DisplayPublic.GhostPlacementsCompleted); }
+    { return FString::Printf(TEXT("幽灵棋子\n颜色隐藏 · 剩余 %d 次落子"),6-DisplayPublic.GhostPlacementsCompleted); }
     return {};
 }
 
@@ -262,12 +260,10 @@ FString ALocalMatchPlayerController::TetrisStatusLabel() const
 {
     if (!bCoherent || !DisplayPublic.bTetrisActive || DisplayPublic.Session!=EMatchSession::Playing) { return {}; }
     const auto* Pose=GetDisplayTetrisPose();
-    if (!Pose) { return TEXT("TETRIS: Synchronizing piece with board..."); }
-    static const TCHAR* Edges[]={TEXT("Top"),TEXT("Bottom"),TEXT("Left"),TEXT("Right")};
-    static const TCHAR* Gravity[]={TEXT("Down"),TEXT("Up"),TEXT("Right"),TEXT("Left")};
-    uint8 OperatorStone=0;
-    for (const auto& Seat : DisplayPublic.Seats) { if (Seat.PlayerId==Pose->OperatorPlayerId) { OperatorStone=Seat.Stone; } }
-    return FString::Printf(TEXT("TETRIS %d/6 | Operator: %s (ID %d) | Block: %s | Spawn: %s / Gravity: %s\nAbsolute arrows (opposite gravity disabled); Space: clockwise rotate. Only the operator controls."),
-        Pose->BlockNumber,*Gomokards::StoneLabel(static_cast<Gomokards::EStone>(OperatorStone)),Pose->OperatorPlayerId,
-        *Gomokards::StoneLabel(static_cast<Gomokards::EStone>(Pose->Stone)),Edges[FMath::Min(uint8(3),Pose->SpawnEdge)],Gravity[FMath::Min(uint8(3),Pose->SpawnEdge)]);
+    if (!Pose) { return TEXT("俄罗斯方块\n正在同步方块……"); }
+    static const TCHAR* Gravity[]={TEXT("↓"),TEXT("↑"),TEXT("→"),TEXT("←")};
+    FString Label=FString::Printf(TEXT("俄罗斯方块\n第 %d / 6 块\n当前操作：%s\n重力方向：%s"),
+        Pose->BlockNumber,*Gomokards::DemoSide(Gomokards::DemoPlayerStone(DisplayPublic,Pose->OperatorPlayerId)),Gravity[FMath::Min(uint8(3),Pose->SpawnEdge)]);
+    if (CanSendTetrisInput()) { Label+=TEXT("\n方向键：移动 · 空格：旋转"); }
+    return Label;
 }

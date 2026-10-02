@@ -1,6 +1,12 @@
 #include "Presentation/SLocalMatchView.h"
 #include "Runtime/LocalMatchPlayerController.h"
 #include "Presentation/MatchPresentation.h"
+#include "Presentation/DemoPresentation.h"
+#include "Presentation/SDemoCards.h"
+#include "Widgets/Layout/SScaleBox.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Core/TetrisRules.h"
 #include "Widgets/SLeafWidget.h"
 #include "Widgets/SBoxPanel.h"
@@ -127,43 +133,110 @@ private:
 void SLocalMatchView::Construct(const FArguments& Args)
 {
     Owner=Args._Owner;
+    Art=MakeShared<FDemoCardArt>();
+    const auto* White=FCoreStyle::Get().GetBrush("WhiteBrush");
+    const FLinearColor Ink(.09f,.11f,.13f), Panel(.93f,.93f,.90f);
+    static const FSlateRoundedBoxBrush TurnDot(FLinearColor::Black,6.f);
+    const auto SideRow=[this,Ink](uint8 Stone)
+    {
+        return SNew(SHorizontalBox)
+            +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+            [SNew(STextBlock).Font(DemoFont(18)).ColorAndOpacity(Ink)
+                .Text_Lambda([this,Stone]{return FText::FromString(DemoSide(Stone)+(Owner->GetPrivateView().Stone==Stone ? TEXT("（你）") : TEXT("")));})]
+            +SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10,0)
+            [SNew(SBox).WidthOverride(12).HeightOverride(12)
+                [SNew(SImage).Image(&TurnDot).Visibility_Lambda([this,Stone]{return IsSideTurn(Stone) && bBlinkOn ? EVisibility::Visible : EVisibility::Hidden;})]];
+    };
     ChildSlot
-    [SNew(SBorder).Padding(20).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(FLinearColor(.035f,.045f,.065f))
-        [SNew(SVerticalBox)
-            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-            [SNew(STextBlock).Text(FText::FromString(TEXT("GOMOKARDS | Phase 5B"))).Font(FCoreStyle::GetDefaultFontStyle("Bold",22))]
-            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
-            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());}).ColorAndOpacity(FLinearColor(.95f,.8f,.35f))]
-            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
-            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->GhostStatusLabel());}).ColorAndOpacity(FLinearColor(.7f,.8f,1))]
-            +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)
-            [SNew(STextBlock).Text_Lambda([this]{return FText::FromString(Owner->TetrisStatusLabel());}).ColorAndOpacity(FLinearColor(.7f,.8f,1))]
-            +SVerticalBox::Slot().AutoHeight()
-            [SNew(SHorizontalBox)
-                +SHorizontalBox::Slot().AutoWidth()
-                [SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent)
-                    [SAssignNew(BoardView,SMatchBoard).View(SharedThis(this))]]
-                +SHorizontalBox::Slot().FillWidth(1).Padding(20,0,0,0)
-                [SNew(SVerticalBox)
-                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(SButton).Text(FText::FromString(TEXT("Development server restart")))
-                        .IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
-                        .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled();})]
-                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).Text(FText::FromString(TEXT("All ten cards are playable, including Ghost and Tetris.\nOnly your card contents are shown. Both hand counts are public.")))]
-                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).Text_Lambda([this]{const auto& V=GetPublicView(); return FText::FromString(FString::Printf(TEXT("Basics: %s | Confusion: %d"),V.bCardsDisabled ? TEXT("on") : TEXT("off"),V.ConfusionRemaining));})]
-                    +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,10)
-                    [SNew(STextBlock).AutoWrapText(true).ColorAndOpacity(FLinearColor::Yellow)
-                        .Text_Lambda([this]{return FText::FromString(TargetingLabel(static_cast<ECardId>(SelectedCard())));})]
-                    +SVerticalBox::Slot().FillHeight(1)[SNew(SScrollBox)+SScrollBox::Slot()[SAssignNew(Hands,SVerticalBox)]]
-                ]]
-            +SVerticalBox::Slot().AutoHeight().Padding(0,12,0,0)
-            [SNew(STextBlock).AutoWrapText(true).Text_Lambda([this]{return FText::FromString(Owner->GetFeedback());})]
-        ]
+    [SNew(SBorder).Padding(0).BorderImage(White).BorderBackgroundColor(FLinearColor(.14f,.17f,.19f))
+        [SNew(SScaleBox).Stretch(EStretch::ScaleToFit)
+            [SNew(SBox).WidthOverride(1600).HeightOverride(940)
+                [SNew(SBorder).Padding(16).BorderImage(White).BorderBackgroundColor(FLinearColor(.97f,.97f,.94f))
+                    [SNew(SVerticalBox)
+                        +SVerticalBox::Slot().AutoHeight()
+                        [SNew(SBox).HeightOverride(28)
+                            [SNew(SHorizontalBox)
+                                +SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Font(DemoFont(18)).ColorAndOpacity(Ink).Text(FText::FromString(TEXT("GOMOKARDS")))]
+                                +SHorizontalBox::Slot().FillWidth(1).HAlign(HAlign_Right)
+                                [SNew(STextBlock).Font(DemoFont(14)).ColorAndOpacity(Ink).Text_Lambda([this]{return FText::FromString(Owner->StatusLabel());})]]]
+                        +SVerticalBox::Slot().AutoHeight()
+                        [SNew(SBox).HeightOverride(64)[SAssignNew(OpponentHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(true).FocusTarget(SharedThis(this))]]
+                        +SVerticalBox::Slot().AutoHeight()
+                        [SNew(SBox).HeightOverride(540)
+                            [SNew(SHorizontalBox)
+                                +SHorizontalBox::Slot().FillWidth(.24f).Padding(0,8,16,8)
+                                [SNew(SBorder).Padding(18).BorderImage(White).BorderBackgroundColor(Panel)
+                                    [SNew(SVerticalBox)
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,18)
+                                        [SNew(STextBlock).Text(FText::FromString(TEXT("对局记录"))).Font(DemoFont(18)).ColorAndOpacity(Ink)]
+                                        +SVerticalBox::Slot().FillHeight(1)
+                                        [SNew(SScrollBox)+SScrollBox::Slot()
+                                            [SNew(STextBlock).Font(DemoFont(13)).ColorAndOpacity(Ink).AutoWrapText(true)
+                                                .Text_Lambda([this]{return FText::FromString(Owner->GetGameLog().Text());})]]]]
+                                +SHorizontalBox::Slot().FillWidth(.52f)
+                                [SNew(SOverlay)
+                                    +SOverlay::Slot()
+                                    [SNew(SScaleBox).Stretch(EStretch::ScaleToFit)
+                                        [SNew(SBox).WidthOverride(FBoardLayout::Extent).HeightOverride(FBoardLayout::Extent)
+                                            [SAssignNew(BoardView,SMatchBoard).View(SharedThis(this))]]]
+                                    +SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
+                                    [SNew(SBorder).Padding(32,20).BorderImage(White).BorderBackgroundColor(FLinearColor(.96f,.95f,.89f,.96f))
+                                        .Visibility_Lambda([this]{return DemoResult(GetPublicView()).IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible;})
+                                        [SNew(STextBlock).Font(DemoFont(28)).ColorAndOpacity(Ink).Text_Lambda([this]{return FText::FromString(DemoResult(GetPublicView()));})]]]
+                                +SHorizontalBox::Slot().FillWidth(.24f).Padding(16,8,0,8)
+                                [SNew(SBorder).Padding(14).BorderImage(White).BorderBackgroundColor(Panel)
+                                    [SNew(SVerticalBox)
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,5)[SideRow(2)]
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,0,0,8)[SideRow(1)]
+                                        +SVerticalBox::Slot().AutoHeight()
+                                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink).AutoWrapText(true)
+                                            .Text_Lambda([this]
+                                            {
+                                                const auto& V=GetPublicView(); FString Label;
+                                                if (V.ConfusionRemaining>0) { Label=FString::Printf(TEXT("定位混淆 · 剩余 %d 次\n"),V.ConfusionRemaining); }
+                                                if (V.bCardsDisabled) { Label+=TEXT("回归基本功 · 卡牌已禁用\n"); }
+                                                Label+=Owner->GhostStatusLabel()+Owner->TetrisStatusLabel();
+                                                return FText::FromString(Label);
+                                            })]
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,5)
+                                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink)
+                                            .Text_Lambda([this]
+                                            {
+                                                if (SelectedCard()) { return FText::FromString(TEXT("待选择目标")); }
+                                                if (GetPublicView().GhostPhase!=EMatchGhostPhase::None || GetPublicView().bTetrisActive) { return FText::FromString(TEXT("当前生效")); }
+                                                return FText::FromString(GetPublicView().LastPlayedCard ? TEXT("最近出牌") : TEXT(""));
+                                            })]
+                                        +SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+                                        [SNew(SDemoCard).Art(Art).Card_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard());})
+                                            .Visibility_Lambda([this]{return DemoDisplayCard(GetPublicView(),SelectedCard()) ? EVisibility::Visible : EVisibility::Collapsed;})]
+                                        +SVerticalBox::Slot().FillHeight(1)[SNew(SSpacer)]
+                                        +SVerticalBox::Slot().AutoHeight().Padding(0,8,0,0)
+                                        [SNew(SButton).IsEnabled_Lambda([this]{return Owner->CanDevelopmentRestart();})
+                                            .Visibility_Lambda([this]{return Owner->GetPrivateView().bDevelopmentAdmin ? EVisibility::Visible : EVisibility::Collapsed;})
+                                            .OnClicked_Lambda([this]{Owner->RequestDevelopmentRestart();return FReply::Handled().SetUserFocus(SharedThis(this));})
+                                            [SNew(STextBlock).Text(FText::FromString(TEXT("重新开始"))).Font(DemoFont(13))]]]]]]
+                        +SVerticalBox::Slot().AutoHeight()
+                        [SNew(SBox).HeightOverride(244)[SAssignNew(OwnHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(false).FocusTarget(SharedThis(this))]]
+                        +SVerticalBox::Slot().AutoHeight()
+                        [SNew(STextBlock).Font(DemoFont(12)).ColorAndOpacity(Ink).Justification(ETextJustify::Center).AutoWrapText(true)
+                            .Text_Lambda([this]{return FText::FromString(Owner->GetFeedback());})]
+                    ]]]]
     ];
     ChangedHandle=Owner->OnPresentationChanged.AddSP(this,&SLocalMatchView::Refresh);
     Refresh();
+}
+void SLocalMatchView::Tick(const FGeometry& G,double CurrentTime,float DeltaTime)
+{
+    SCompoundWidget::Tick(G,CurrentTime,DeltaTime);
+    if (CurrentTime>=NextBlink)
+    { bBlinkOn=!bBlinkOn; NextBlink=CurrentTime+.5; Invalidate(EInvalidateWidgetReason::Layout); }
+}
+bool SLocalMatchView::IsSideTurn(uint8 Stone) const
+{
+    const auto& P=GetPublicView();
+    if (P.Session!=EMatchSession::Playing || P.Result!=0) { return false; }
+    const auto* Pose=GetTetrisPose();
+    return DemoPlayerStone(P,Pose ? Pose->OperatorPlayerId : P.CurrentPlayerId)==Stone;
 }
 SLocalMatchView::~SLocalMatchView()
 { if (Owner.IsValid()) { Owner->OnPresentationChanged.Remove(ChangedHandle); } }
@@ -179,32 +252,13 @@ uint8 SLocalMatchView::PreviewStone() const
 void SLocalMatchView::Refresh()
 {
     BoardView->Invalidate(EInvalidateWidgetReason::Paint);
+    OwnHand->Invalidate(EInvalidateWidgetReason::Paint);
+    OpponentHand->Invalidate(EInvalidateWidgetReason::Paint);
     const auto& Public=Owner->GetPublicView();
-    const auto& Private=Owner->GetPrivateView();
-    // Pose-only notifications must not rebuild hand buttons or disturb keyboard focus.
-    if (HandEpoch==Public.Epoch && HandRevision==Public.Revision) { return; }
-    HandEpoch=Public.Epoch; HandRevision=Public.Revision;
-    Hands->ClearChildren();
-    for (const auto& Seat : Public.Seats)
-    {
-        Hands->AddSlot().AutoHeight().Padding(0,8)
-            [SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("%s hand: %d%s"),*StoneLabel(static_cast<EStone>(Seat.Stone)),Seat.HandCount,
-                Seat.PlayerId==Private.PlayerId ? TEXT(" (you)") : TEXT(""))))];
-    }
-    // Only the owner-private projection can provide card IDs; there is no opponent-hand query.
-    for (uint8 Card : Private.Hand)
-    {
-        Hands->AddSlot().AutoHeight().Padding(0,2)
-            [SNew(SButton)
-                .IsEnabled_Lambda([this,Card]{return Owner->CanPlayCard(Card) || Owner->CanTargetCard(Card);})
-                .Text(FText::FromString(CardLabel(static_cast<ECardId>(Card)) + ((IsNetworkCardEnabled(Card) || IsTargetedNetworkCardEnabled(Card)) ? TEXT("") : TEXT(" — networking not enabled yet"))))
-                .OnClicked_Lambda([this,Card]
-                {
-                    if (IsTargetedNetworkCardEnabled(Card)) { Owner->ToggleTargeting(Card); }
-                    else { Owner->RequestCard(Card); }
-                    return FReply::Handled().SetUserFocus(SharedThis(this));
-                })];
-    }
+    // Selection/feedback changes redraw; pose-only changes do not disturb hand hover or focus.
+    if (HandEpoch!=Public.Epoch || HandRevision!=Public.Revision)
+    { OwnHand->ResetHover(); HandEpoch=Public.Epoch; HandRevision=Public.Revision; }
+    Invalidate(EInvalidateWidgetReason::Paint);
 }
 uint8 SLocalMatchView::SelectedCard() const { return Owner->GetSelectedTargetedCard(); }
 void SLocalMatchView::CancelTargeting() { Owner->CancelTargeting(); }

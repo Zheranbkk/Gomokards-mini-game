@@ -36,6 +36,10 @@ public:
     virtual void BeginDestroy() override;
 private:
     Gomokards::FMatchState Match;
+    uint8 LastPlayedCard = 0;
+    int32 LastPlayedCardActor = INDEX_NONE;
+    uint64 LastPlayedCardAction = 0;
+    friend class FDemoNetworkTest;
     TMap<TWeakObjectPtr<ALocalMatchPlayerController>, int32> Assignments;
     TSet<TWeakObjectPtr<ALocalMatchPlayerController>> DevelopmentAdmins;
     EMatchSession Session = EMatchSession::WaitingForPlayers;

@@ -1163,7 +1163,7 @@ Use an installed UE 5.8.2 with its supported MSVC/Windows SDK. Set the following
 
 ```powershell
 $EngineRoot = 'G:\GameDev\Unreal\UE_5.8'
-$ProjectFile = 'C:\GomokardsPhase6AWorkspace\Gomokards\Gomokards.uproject'
+$ProjectFile = Join-Path (Get-Location) 'Gomokards/Gomokards.uproject' # run from repository root
 $ProjectRoot = Split-Path $ProjectFile
 $env:uebp_LogFolder = Join-Path $ProjectRoot 'Saved/PackagingAudit/UAT'
 $env:uebp_FinalLogFolder = $env:uebp_LogFolder
@@ -1200,3 +1200,114 @@ The client connects to the host URL; the server supplies the map, so a client ma
 - Save both machines' game logs with observations, GPU/driver and build identity. LAN validation remains **PENDING** until the user reports the result.
 
 Remaining risks: packaged GPU/RHI/font/focus behavior on the second machine is unverified; the template defaults to DX12/SM6 and retains its rendering settings. No graphics-setting redesign was made. Real network latency/firewall behavior and Phase 5B hands-on acceptance are pending. No Internet, malicious-host confidentiality, Shipping build or Dedicated Server support is claimed. Stop after Phase 6A.
+
+## Demo UI Polish v0.1
+
+This presentation pass follows the accepted Phase 5B implementation and the historical Phase 6A audit above. The three supplied images define (A) information placement, (B) portrait title/art/description hierarchy, and (C) overlapping hand/raised hover interaction only. Blue text/red sketch outlines and third-party art, borders, palette and theme are not reproduced. Core rules, ten-card pool, RNG, turn ownership, Ghost/Tetris rules and server authority are unchanged. No UMG rewrite, menus, sound, animation framework or new networking provider.
+
+### Slate layout and card interaction
+
+`SLocalMatchView` fits a compact 1600x940 logical composition inside the viewport: opponent backs at top, local cards below, central unchanged 19x19 board, left log and right side/status/card panel. The board's coordinate conversion, target previews, forbidden marks, barriers, Ghost gray stones and Tetris squares are retained. This is a simple fit-to-window layout, not a general responsive system; use a normal desktop window (preferably 1600x900 or larger).
+
+`SDemoHand` centers overlapping portrait cards. Hover immediately raises one card and paints/hit-tests it above neighbors; its full title, blank art and description become visible. Disabled cards are muted but remain hover-readable. Card clicks return keyboard focus to the existing root; Escape/right-click cancellation and absolute Tetris arrows/Space remain supported. Extremely large hands necessarily expose less title area; there is no new hand cap or scrolling system.
+
+Targeted selection remains local and leaves the card in hand. The right panel says **待选择目标** until cancellation/submission; only server acceptance consumes the card. Cancel/reselect does not publish a play. Submission clears local selection using the existing request behavior; rejection can be retried by selecting again. Right-panel priority is local targeted selection, active Ghost/Tetris, then most recent accepted public card. Instant cards remain visible as the most recent play until another accepted card or reset.
+
+### Frozen Chinese presentation and asset seam
+
+`DemoPresentation.cpp` is the single presentation mapping; gameplay definitions remain in their existing layer. All current player-facing gameplay labels, feedback, statuses and result text are Simplified Chinese; the brand remains `GOMOKARDS`. Historical English helper functions retained for older pure-helper tests are not called by the new UI.
+
+| Internal ID | Display name | Description |
+| --- | --- | --- |
+| Restock | 补充库存 | 抽取 2 张卡牌。 |
+| SwapHands | 战术换家 | 打出本牌后，与对手交换剩余手牌。 |
+| Steal | 取之有道 | 随机获得对手 1 张手牌；若对手无牌，则无事发生。 |
+| TacticalNuke | 战术核弹 | 清空并永久封锁一个目标位置。 |
+| Polarity | 两极反转 | 翻转所选 2×2 区域内所有棋子的颜色。 |
+| Confusion | 定位混淆 | 接下来 2 次成功行动共享混淆次数：落子颜色反转，出牌也会消耗 1 次。 |
+| Barrier | 阴阳屏障 | 在所选区域放置屏障，阻断穿过该区域的棋子连线。 |
+| BackToBasics | 回归基本功 | 清除定位混淆，并使双方本局后续无法再出牌。 |
+| Ghost | 幽灵棋子 | 记忆棋盘 5 秒后隐藏所有棋子颜色；完成 6 次成功落子后恢复并结算胜负。 |
+| Tetris | 俄罗斯方块 | 双方交替操控共 6 个方块；方块颜色与操作者相反，锁定后若形成 5 子及以上同色直线则消除。 |
+
+Each card has a distinct `/Game/UI/Cards/T_CardArt_<InternalID>_Placeholder` Texture2D; the eleventh asset is `T_CardBack_Placeholder`. All are intentionally identical neutral blank 4x4 art, with embedded source data, no text or illustration baked in. Replace each asset at its stable path with illustration/background art later; Slate continues drawing name/description dynamically. `FDemoCardArt` retains textures for the UI lifetime. Runtime loads Unreal assets, never external PNG files. `DefaultGame.ini` narrowly always-cooks `/Game/UI/Cards` because native string references alone do not guarantee cook discovery. No Asset Manager was added. Cook configuration/readability were inspected; this task does **not** claim a new successful package.
+
+### Public display, log and privacy
+
+The only new public network data is the last accepted played-card ID, acting player and completed-action serial. GameMode sets these after successful Core resolution and clears them on reset; rejected requests, local selection/cancellation, draws and mode ticks cannot publish a false play. This is a small presentation field addition, not an event stream or gameplay change.
+
+Opponent backs use public `HandCount` only, with no identity or hover-detail source. Own exact cards use the existing owner-only private view. `FDemoGameLog` retains at most 12 local text entries, consumes only coherent public/private snapshots, clears on epoch reset and never writes a disk log. It reports placements, accepted public cards, public hand-count increases, Ghost/Tetris transitions and results. Exact newly acquired names can appear only from the local owner's hand delta; another player's count increase never exposes an acquired ID. It does not log each key/gravity step. Replication can coalesce snapshots: the log intentionally omits unverifiable intermediate actions/acquisition identities and is not guaranteed complete history. A swap/steal may show newly received own cards; public count changes describe the actual observed net increase.
+
+Static review: no full `FMatchState` reaches Slate; widgets have no GameMode gameplay access and calculate no authoritative card outcome. Core/card files, RPC permissions and ownership are unchanged. Ghost true colors remain transport-redacted; future Tetris shapes/RNG remain server-only. Played identities are public only after acceptance. Host confidentiality against a malicious host is not claimed.
+
+The right panel uses assigned 黑方/白方 identities, with a presentation-only black circle blinking every 0.5 seconds beside the current side (the current operator during Tetris). Inactive effects are hidden. Active 定位混淆/回归基本功, Ghost countdown/remaining placements and Tetris block/operator/gravity are Chinese. A central 黑方获胜/白方获胜/平局 overlay displays terminal results. Existing authorized host restart is labeled **重新开始**; remote clients do not gain restart permission.
+
+### Fonts and validation
+
+A small Slate composite font uses Engine `Roboto-Regular.ttf` with Engine `DroidSansFallback.ttf` as CJK fallback. It does not depend on Windows-installed fonts or a download. Static cmap verification covered all **226 distinct Chinese characters** in the request and current C++ source, with **0 missing glyphs**. The earlier Phase 6A staging manifest includes the Engine fallback font; the new Demo's packaged rendering still needs future packaging/user validation.
+
+**UE 5.8.2 Win64 Development Editor compile: PASSED.** The final exported full-suite Automation report contains **53 passed, 0 failed, 0 test warnings, 0 skipped/not run** (50 existing + 3 Demo groups). Report totals and each test state were inspected, not just the process exit code. The first run found two test-adaptation issues (an English feedback expectation and reading texture render dimensions under NullRHI); both were corrected and the complete suite rerun successfully. Existing 50 Automation groups remain; three focused Demo groups cover frozen mappings/embedded assets, identity/count-only log paths/display priority, and accepted/rejected public play plus local targeting. Older assertions are translated where needed; test-local symbols were made unique where unity compilation exposed collisions. No gameplay assertion was removed.
+
+Visual startup inspection was attempted with the external desktop capture tool, but the fresh graphical process remained at the splash screen while ShaderCompileWorker processes were compiling. The agent stopped that inspection process without sending gameplay input. No completed gameplay-screen, card-hover or rendered-CJK visual pass is claimed; static font coverage and NullRHI Automation are not substitutes for the manual checks below.
+
+**Phase 5B automated validation: PASSED.** **Phase 5B user manual PIE: PENDING.** **Demo UI Polish v0.1 user manual validation: PENDING.** The agent does not perform hands-on gameplay. The current task explicitly authorizes this focused commit/push while handing manual acceptance to the user. The earlier Phase 6A package is a historical pre-UI archive, not acceptance of this UI. The next package must wait for Demo UI and Phase 5B manual acceptance; physical two-PC LAN remains **PENDING**, and Internet/session-provider work remains later.
+
+### Manual UI Validation Checklist
+
+Use two-player Listen Server + Client PIE, preferably in separate normal desktop windows. Compare both views.
+
+1. Verify top opponent hand, bottom own hand, large central board, left 对局记录 and right side/status/card panel. No blue/red sketch annotation; gameplay information and glyphs are readable Chinese.
+2. Earn cards with an existing deterministic recipe. Opponent shows one back per public card count and no hover identity; own cards overlap, remain distinguishable, and show the exact frozen name/blank art/description when raised.
+3. Hover raises the correct card above neighbors. Repeat while it is unplayable during opponent turn, Ghost, Tetris and 回归基本功: it remains readable but cannot play.
+4. Select 战术核弹/两极反转/阴阳屏障: card stays in hand, right panel says 待选择目标, correct board preview appears. Escape, right-click and reselect cancel with no consumption/action. Invalid target does not publish a card; accepted target consumes once and appears publicly.
+5. Check recent instant cards, persistent active Ghost/Tetris display and the bounded log. Opponent acquisitions show count only; your own acquired identity may appear locally. Actually played cards can be named to both.
+6. Check 黑方/白方 identity, blinking indicator/turn changes, Chinese 定位混淆 remaining count and 回归基本功 disabled state. Inactive effects should not clutter the panel.
+7. Repeat accepted Ghost seed 182 recipe: visible preparation/countdown/freeze, all-gray hidden stones including new ones/no true-color preview, remaining placements and coherent reveal. Existing Ghost gameplay acceptance is not a claim that this new UI was manually accepted.
+8. Perform the pending Tetris checklist below through the new UI: same pose in both windows, correct operator/block/gravity and arrows/Space focus.
+9. Verify win/draw overlay and terminal rejection. Only authorized Host gets working 重新开始; restart resets both UI views/log/selection. Disconnect shows ended session without an invented winner.
+
+### Pending Phase 5B Tetris manual PIE through this UI
+
+Set two players, Play As Listen Server, map `/Game/Maps/LocalMatch`, **Seed 5751**. For a fresh Editor launch, use:
+
+```powershell
+& "$EngineRoot/Engine/Binaries/Win64/UnrealEditor.exe" "$ProjectFile" "-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=5751"
+```
+
+Stop/start PIE for a deterministic replay; **重新开始 randomizes the seed**, so do not use it during acquisition. Coordinates below are zero-based from top-left; perform Black then White in each row.
+
+| Pair | Black | White |
+| --- | --- | --- |
+| 1 | (5,5) | (6,5) |
+| 2 | (0,0) | (7,5) |
+| 3 | (8,5) | (1,0) |
+| 4 | (9,9) | (10,9) |
+| 5 | (12,12) | (11,9) |
+| 6 | (12,9) | (5,12) |
+| 7 | (6,12) | (0,18) |
+| 8 | (7,12) | (8,12) |
+
+After 16 placements Black owns 补充库存/取之有道; White owns 战术换家/俄罗斯方块. Black places `(17,17)`, then White plays 俄罗斯方块. This is ordinary action 18; the first operator is Black, first piece is a white T spawned Top with Down gravity at `(13,0)` (it may already have fallen when viewed).
+
+- Both windows show identical committed squares and active piece; right panel shows block number, actual operator and gravity. Only the operator can control it. Operators alternate over six spawn opportunities.
+- Absolute arrows remain absolute. For Top/Down reject Up; Bottom/Up reject Down; Left/Right reject Left; Right/Left reject Right. Gravity/perpendicular directions work where space exists; Space rotates clockwise. Rejecting opposite input changes nothing. Replay as needed to inspect orientations.
+- A successful soft drop resets the next gravity step to 0.5 seconds; perpendicular movement/rotation do not. A blocked manual input does not lock; only blocked automatic gravity locks. Compare both views.
+- Ordinary board/card/target actions stay frozen; movement does not consume ordinary actions, hand cards or Confusion. Do not expect per-key log spam.
+- After six opportunities, no active piece remains, committed stones return round and both views agree on normal turn/result. In the hands-off recipe Black can continue at `(18,0)`; if steering leads to terminal state, verify shared result and input rejection instead.
+- Replay, restart on Host during falling, and wait past the old deadline: both views stay reset with no stale piece. Replay and disconnect during Tetris: remaining view ends the session without further falling/locks or an invented winner.
+
+No physical LAN test is requested in this phase. Stop after Demo UI v0.1.
+
+### Sync and Development Editor build
+
+Close the running Gomokards Editor/game before linking. In the repository root:
+
+```powershell
+git switch ue-migration
+git pull --ff-only origin ue-migration
+$EngineRoot = 'G:\GameDev\Unreal\UE_5.8' # adjust to the installed UE 5.8.2
+$ProjectFile = Join-Path (Get-Location) 'Gomokards/Gomokards.uproject'
+& "$EngineRoot/Engine/Build/BatchFiles/Build.bat" GomokardsEditor Win64 Development "-Project=$ProjectFile" -WaitMutex -NoHotReloadFromIDE
+```
+
+This change adds **three .cpp files, two .h files and eleven binary .uasset textures**. Regenerate IDE project files if needed to show the new source files; UnrealBuildTool discovers them without that step. Do not routinely clear `Intermediate`/`Binaries`; a normal build/UHT handles these changes. Use the configured development drive for temporary files, caches and build logs. No new packaging or physical LAN execution is part of this UI task.
