@@ -1133,3 +1133,70 @@ After 16 placements Black has `[Restock, Steal]`, White `[Swap Hands, Tetris]`. 
 9. **Regression:** repeat accepted Ghost `182` and prior card recipes as needed. All ten cards are now enabled through their correct boundaries, including Tetris in the old `5751` recipe. Line-clear/Barrier/fallback/terminal cases have automated fixtures; the user need not engineer those positions manually.
 
 **Phase 5B user manual PIE validation: PENDING.** Agent performed no hands-on gameplay. The implementation request explicitly authorizes this focused commit/push with manual validation handed to the user. After Phase 5B manual acceptance, the next phase is a Development packaged build, followed by physical two-PC LAN validation (still pending). Internet/session-provider infrastructure remains later. Reliable server input has no prediction/interpolation; evaluate actual network feel before adding latency machinery. No packaging, LAN, Internet, reconnect/spectator protocol or malicious-host confidentiality is claimed here. Stop after Phase 5B.
+
+
+## Phase 6A Packaging Readiness Audit
+
+Continues from `854ab367c202f0fb1ff55d8e7161e26f9b8a1d8a`. Phase 5A user manual PIE remains **PASSED**; Phase 5B user manual PIE remains **PENDING**. This explicitly requested packaging audit proceeds without treating Phase 5B gameplay acceptance as complete. No gameplay, card, replication architecture, matchmaking, session provider or Dedicated Server target was added.
+
+### Findings and fixes
+
+- **Build:** `Gomokards.uproject` declares one Runtime module loaded at Default. Game and Editor targets already exist with UE 5.8 include order and V7 settings. Runtime dependencies are Core/CoreUObject/Engine/InputCore/EnhancedInput plus Slate/SlateCore; no UnrealEd or Editor module dependency. The enabled ModelingToolsEditorMode plugin is restricted to Editor targets. EnhancedInput supplies the configured default input classes even though gameplay uses Slate.
+- **Assets/cook:** `Content/Maps/LocalMatch.umap` is the only project content asset. GameDefaultMap and EditorStartupMap point to `/Game/Maps/LocalMatch`; the configured GameMode is `/Script/Gomokards.LocalMatchGameMode`. Board/card/Ghost/Tetris presentation is C++ Slate geometry/text using runtime CoreStyle brushes/fonts, not editor textures, project card images, widget Blueprints or external pygame files. WhiteBrush is a runtime color brush; font resources come from Engine Content/Slate/Fonts. The explicit packaging command cooks LocalMatch and its dependencies. No Asset Manager or new generated asset is needed.
+- **Lifecycle:** InitGame parses the host's Seed option and initializes server-owned state. PostLogin assigns seats and resets both views on the second join. Logout ends the session and cancels both timers. Reset, EndPlay and BeginDestroy cancel ticker handles and invalidate callback generations; stale mode inputs additionally fail epoch/token checks. Controller BeginPlay builds local viewport UI and removes it at EndPlay. It does not assume a replicated GameState snapshot is already available: absent/mismatched public/private state disables interaction, and GameState BeginPlay/RepNotify plus private RepNotify refresh presentation once coherent. Listen-host publication explicitly refreshes the same UI.
+- **Non-editor code:** no GEditor, UnrealEd include, editor asset path or editor-only gameplay branch was found in project runtime code. Automation bodies are guarded by `WITH_DEV_AUTOMATION_TESTS`. The actual Development Game compile has `WITH_EDITOR=0` and `WITH_DEV_AUTOMATION_TESTS=1`: Development can retain registered tests, but fixtures run only when Automation is explicitly invoked; no runtime hand-injection/forced-spawn API or automatic test execution was added. This audit does not claim tests are stripped from Development.
+- **Input:** local controller applies UIOnly focus to a keyboard-focusable Slate root, shows the mouse and unlocks it. Board/card clicks return focus to the root. Preview-key handling receives Escape and Tetris arrows/Space via the existing key helper; operator/coherence checks precede network submission. No editor input bindings are required. Packaged visual focus and physical keyboard/mouse behavior still require the user checklist below.
+- **Environment fix:** UAT's nested child-command parsing failed on a checkout path containing an apostrophe; a project alias alone was insufficient because the default UAT log path had the same issue. A verified NTFS directory junction with a simple path plus process-local `uebp_LogFolder`/`uebp_FinalLogFolder` overrides bypassed it. A junction attempt on the engine drive was unsupported. No engine or gameplay code was patched. Prefer a normal checkout path without apostrophes for future packaging; a junction is optional. Existing build-cache path warnings after aliasing are not source errors.
+
+### Validation and packaged contents
+
+- **UE 5.8.2 Win64 Development Editor compile: PASSED.** UAT also compiled the non-editor **Gomokards Win64 Development** Game target successfully with MSVC 14.44 / Windows SDK 10.0.22621.0.
+- **Build / Cook / Stage / Archive: PASSED**, UAT exit code 0 (`BUILD SUCCESSFUL`). Cook summary: **0 errors, 0 warnings**. Zen initially needed time to restart for staging; UAT started it successfully and completed the archive without manual service changes.
+- Archive: `Gomokards/Saved/Packages/Phase6A/Windows/` (50 files, 1,091,016,318 bytes at creation, including debug symbols). Contains bootstrap `Gomokards.exe`, the Development game executable/dependencies, `.pak` and `.utoc/.ucas` containers, and prerequisite installers. Copy the entire folder. The staging manifest includes `Gomokards/Content/Maps/LocalMatch.umap`; actual pak listing confirms runtime `Roboto-Regular.ttf` and `Roboto-Bold.ttf`. CoreStyle geometry plus these engine resources support board/cards/Ghost/Tetris presentation; no custom material/texture dependency is missing from the audited view.
+- **Packaged startup smoke: PASSED**, bootstrap exit code 0. A hidden, unattended **NullRHI** launch with `/Game/Maps/LocalMatch?listen?Seed=5751`, port 7777 and automatic `quit` loaded `LocalMatchGameMode`, opened the IP listener on 7777 and completed clean world/driver teardown. No gameplay input was sent. This proves cooked-map/runtime startup, not GPU rendering, focus, client joining or physical LAN success. Optional profiling DLL probes (aqProf/VTune/WinPixGpuCapturer) were unavailable but did not prevent startup; no Warning/Error log entries occurred in this smoke run.
+- Evidence remains ignored under `Saved/PackagingAudit/`: `UAT/Log.txt`, staging manifests and `PackagedStartup.log`. The archived inner `Gomokards/Binaries/Win64/Gomokards.exe` SHA-256 is `E3A9F53289391E841ADD90E7ED383B74ABE35A13D5C15D1A0392E2D592C91ACE`, built from the Phase 5B source baseline above.
+- No source/config/assets/tests required modification. This audit updates README and narrowly ignores generated `Build/*/FileOpenOrder/` cook-order logs; other Build resources remain trackable. The accepted Phase 5B Automation result remains **50 passed, 0 failed, 0 test warnings, 0 skipped**; Automation was not rerun for this documentation/ignore-only change. Phase 5B manual PIE and physical LAN remain pending.
+
+### Reproduce Development packaging
+
+Use an installed UE 5.8.2 with its supported MSVC/Windows SDK. Set the following paths for the machine; project and log paths should avoid apostrophes. The log directory must be dedicated to this run because AutomationTool clears its contents. Outputs below stay under ignored `Saved/`; do not commit Binaries/Intermediate/Saved or distribute just the executable.
+
+```powershell
+$EngineRoot = 'G:\GameDev\Unreal\UE_5.8'
+$ProjectFile = 'C:\GomokardsPhase6AWorkspace\Gomokards\Gomokards.uproject'
+$ProjectRoot = Split-Path $ProjectFile
+$env:uebp_LogFolder = Join-Path $ProjectRoot 'Saved/PackagingAudit/UAT'
+$env:uebp_FinalLogFolder = $env:uebp_LogFolder
+& "$EngineRoot/Engine/Build/BatchFiles/Build.bat" GomokardsEditor Win64 Development "-Project=$ProjectFile" -WaitMutex -NoHotReloadFromIDE
+& "$EngineRoot/Engine/Build/BatchFiles/RunUAT.bat" BuildCookRun "-project=$ProjectFile" -noP4 -platform=Win64 -clientconfig=Development -build -cook -map=/Game/Maps/LocalMatch -stage -pak -archive "-archivedirectory=$ProjectRoot/Saved/Packages/Phase6A" -prereqs -unattended -utf8output
+```
+
+### Exact direct-address LAN launch procedure
+
+1. Copy the **entire archived Windows folder** to both PCs, using the same build. Install the bundled `Engine/Extras/Redist/en-us/vc_redist.x64.exe` if prerequisites are missing; no Unreal Editor installation is required on the second PC.
+2. Put both PCs on a reachable private LAN. Find the host's LAN IPv4 address with `ipconfig`. Allow the packaged game through Windows Firewall on the private network; the default game driver uses **UDP 7777**. No router port forwarding or Internet service is part of this procedure. Do not use `127.0.0.1` on the second PC.
+3. In PowerShell in the archived Windows folder, launch the host:
+
+```powershell
+.\Gomokards.exe "/Game/Maps/LocalMatch?listen?Seed=5751" -port=7777 -log -windowed -ResX=1280 -ResY=900
+```
+
+4. On the other PC, from its copied Windows folder, substitute the host's actual address:
+
+```powershell
+.\Gomokards.exe "192.168.1.10:7777" -log -windowed -ResX=1280 -ResY=900
+```
+
+The client connects to the host URL; the server supplies the map, so a client map suffix or Seed is unnecessary. The host must include `?listen`: launching the executable without it starts standalone hot-seat. Use the first local player as the host; read the displayed assigned identity instead of assuming an arbitrary window order. This uses UE's existing IP driver/direct travel, without a custom menu or session provider. For Ghost, close both processes and repeat with host `?Seed=182`. Development Restart randomizes the seed; restart the processes to replay a deterministic recipe.
+
+### Next physical LAN / Manual Gameplay Validation Checklist
+
+- First finish the pending Phase 5B two-window PIE checklist. Packaging success is not gameplay acceptance.
+- Launch on both physical PCs without Editor. Verify startup map, board, card text/buttons and fonts render; host waits for the second player, then identities/turns synchronize.
+- Click ordinary placements from each side; check wrong-turn/invalid requests, owner-only card identities/public counts, result and terminal rejection. Exercise card selection and Escape/right-click cancellation.
+- Follow the Phase 5B seed 5751 recipe: test both operators' arrows/Space, absolute directions and inverse-gravity rejection, soft-drop timing, automatic lock, six opportunities, square/round display transition and normal play afterward. Compare both screens and record any lag/queued-key behavior.
+- Relaunch with seed 182 for Ghost: verify preparation/freeze/countdown, gray old/new stones, private reward, six-placement reveal and continued play. Recheck the other eight cards using their accepted recipes.
+- Restart on the authorized host during each timed mode; verify both views reset with no stale callback/shape. Close the client during a mode; the remaining host should reach SessionEnded (abrupt loss may wait for connection timeout), without inventing a winner. Start a new session afterward; reconnect is not implemented.
+- Save both machines' game logs with observations, GPU/driver and build identity. LAN validation remains **PENDING** until the user reports the result.
+
+Remaining risks: packaged GPU/RHI/font/focus behavior on the second machine is unverified; the template defaults to DX12/SM6 and retains its rendering settings. No graphics-setting redesign was made. Real network latency/firewall behavior and Phase 5B hands-on acceptance are pending. No Internet, malicious-host confidentiality, Shipping build or Dedicated Server support is claimed. Stop after Phase 6A.

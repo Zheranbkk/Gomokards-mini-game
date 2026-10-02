@@ -10,3 +10,5 @@ Gomokards/*.sln
 Gomokards/*.slnx
 Gomokards/*.VC.db
 Gomokards/*.VC.opendb
+# Generated cook file-access ordering logs (retain other Build resources)
+Gomokards/Build/*/FileOpenOrder/
