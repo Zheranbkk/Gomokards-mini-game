@@ -1345,3 +1345,25 @@ Manual visual checklist (user):
 5. Verify ordinary success leaves no persistent bottom message, while waiting/errors/target instructions remain visible. Check target cancellation, win/draw alignment and Host-only restart as a visual regression.
 
 Stop UI development after this pass. **Packaging is next only after the user accepts v0.1.1 visually.** No package was built in this pass. Physical two-machine LAN remains **PENDING**; Internet/session-provider work remains later. Existing sync/Development Editor commands above apply; no source regeneration or routine Intermediate/Binaries deletion is required.
+
+## Demo v0.1.2 — Exit Control
+
+Demo UI v0.1.1 visual acceptance and Phase 5B manual PIE are **PASSED (user-performed)**. The first v0.1.1 Development package was built and startup-smoke-tested. These accepted results supersede the older pending notices above; physical two-machine LAN remains **PENDING**.
+
+The existing Slate view now provides a visible top-left **退出游戏** button. **Escape always exits directly**, including targeting, Ghost, Tetris, terminal, waiting and SessionEnded states. This explicitly supersedes all historical Escape-to-cancel instructions. Right-click and re-clicking the selected targeted card still cancel selection; the targeting hint reflects this change. The button occupies the existing top row, with symmetric hand padding to prevent overlap; board geometry and vertical position are unchanged.
+
+Both exit routes use the same local Slate callback, whose runtime default calls `UKismetSystemLibrary::QuitGame` for the local controller. Standard Unreal quit closes the packaged application and requests viewport/PIE closure in the Editor rather than quitting the Editor application. Exit is application control, not a gameplay action: no RPC, replicated field, Core action, card consumption, RNG or match-state mutation was added. Existing disconnect lifecycle remains responsible for departures; Exit is not surrender and assigns no winner. No new source files, assets, config, dependencies or networking features were added.
+
+**UE 5.8.2 Win64 Development Editor compile: PASSED.** The final exported complete Gomokards Automation report contains **53 passed, 0 failed, 0 test warnings, 0 skipped/not run, 0 in progress**. All existing groups remain. The former Escape-cancels assertion now checks local exit dispatch while preserving selection and complete authoritative state/revision; the button handler shares that test callback, avoiding termination of the test process. Right-click/reselect cancellation and existing gameplay/network assertions remain passing. Static review confirms Escape is handled before all mode/state checks and existing card/board focus, Tetris arrows and Space routing are retained.
+
+**Packaged Demo v0.1.2 status at this source commit: pending post-push packaging.** Per the requested sequence, the clean pushed commit is the package input; Build/Cook/Stage/Pak/Archive, graphical startup/exit smoke and final ZIP hashes are reported with the external deliverable after packaging, without a second source commit. Recipient Share/ZIP must omit only `.pdb` debug symbols, preserving runtime files, LocalMatch, all eleven placeholder textures and Chinese/Slate resources. All controllable build, report, archive and share outputs use the configured development drive outside version control. No Internet/session-provider work or physical LAN validation is included.
+
+### Manual Gameplay Validation Checklist
+
+User acceptance of the new Exit controls remains pending; agent startup/exit smoke is not gameplay acceptance. In separate short runs:
+
+1. Verify **退出游戏** is visible top-left without overlapping opponent cards; click it to close the packaged game. In PIE, verify the play session ends while the Editor remains open.
+2. Verify Escape closes immediately after normal board/card/hover interaction and during targeting, Ghost Preparation/Hidden, Tetris, match end, WaitingForPlayers and SessionEnded; it must never merely cancel selection.
+3. Before exiting, verify right-click and reselect still cancel targeting without consuming a card/action, and Tetris arrows/Space retain focus and behavior.
+
+The existing sync/Development Editor command applies. This focused commit and subsequent package are explicitly requested before this user recheck; stop after the v0.1.2 deliverable.

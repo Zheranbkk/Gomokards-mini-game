@@ -1,5 +1,6 @@
 #include "Presentation/SLocalMatchView.h"
 #include "Runtime/LocalMatchPlayerController.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Presentation/MatchPresentation.h"
 #include "Presentation/DemoPresentation.h"
 #include "Presentation/SDemoCards.h"
@@ -133,6 +134,15 @@ private:
 void SLocalMatchView::Construct(const FArguments& Args)
 {
     Owner=Args._Owner;
+    OnExitGame=Args._OnExitGame;
+    if (!OnExitGame.IsBound())
+    {
+        OnExitGame=FSimpleDelegate::CreateLambda([this]
+        {
+            if (Owner.IsValid() && Owner->IsLocalController())
+            { UKismetSystemLibrary::QuitGame(Owner.Get(),Owner.Get(),EQuitPreference::Quit,false); }
+        });
+    }
     Art=MakeShared<FDemoCardArt>();
     const auto* White=FCoreStyle::Get().GetBrush("WhiteBrush");
     const FLinearColor Ink(.09f,.11f,.13f), Panel(.93f,.93f,.90f);
@@ -154,7 +164,13 @@ void SLocalMatchView::Construct(const FArguments& Args)
                 [SNew(SBorder).Padding(12).BorderImage(White).BorderBackgroundColor(FLinearColor(.97f,.97f,.94f))
                     [SNew(SVerticalBox)
                         +SVerticalBox::Slot().AutoHeight()
-                        [SNew(SBox).HeightOverride(124)[SAssignNew(OpponentHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(true).FocusTarget(SharedThis(this))]]
+                        [SNew(SBox).HeightOverride(124)
+                            [SNew(SOverlay)
+                                +SOverlay::Slot().Padding(200,0)
+                                [SAssignNew(OpponentHand,SDemoHand).Art(Art).Owner(Owner.Get()).Opponent(true).FocusTarget(SharedThis(this))]
+                                +SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top)
+                                [SNew(SButton).OnClicked(this,&SLocalMatchView::ExitGame)
+                                    [SNew(STextBlock).Text(FText::FromString(TEXT("退出游戏"))).Font(DemoFont(21))]]]]
                         +SVerticalBox::Slot().AutoHeight()
                         [SNew(SBox).HeightOverride(700)
                             [SNew(SHorizontalBox)
@@ -266,14 +282,19 @@ void SLocalMatchView::Refresh()
 uint8 SLocalMatchView::SelectedCard() const { return Owner->GetSelectedTargetedCard(); }
 void SLocalMatchView::CancelTargeting() { Owner->CancelTargeting(); }
 void SLocalMatchView::BoardClick(FIntPoint Coordinate) { Owner->RequestBoardClick(Coordinate); }
+FReply SLocalMatchView::ExitGame()
+{
+    OnExitGame.ExecuteIfBound();
+    return FReply::Handled();
+}
 FReply SLocalMatchView::OnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
 {
+    if (Event.GetKey()==EKeys::Escape) { return ExitGame(); }
     if (GetPublicView().bTetrisActive)
     {
         const auto Input=TetrisInputForKey(Event.GetKey());
         if (Input.IsSet()) { Owner->RequestTetrisInput(static_cast<EMatchTetrisInput>(Input.GetValue())); return FReply::Handled(); }
     }
-    if (Event.GetKey()==EKeys::Escape) { CancelTargeting(); return FReply::Handled(); }
     return SCompoundWidget::OnPreviewKeyDown(Geometry,Event);
 }
 FReply SLocalMatchView::OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event)

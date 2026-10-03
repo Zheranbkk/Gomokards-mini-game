@@ -10,7 +10,7 @@ struct FDemoCardArt;
 class SLocalMatchView : public SCompoundWidget
 {
 public:
-    SLATE_BEGIN_ARGS(SLocalMatchView) {} SLATE_ARGUMENT(ALocalMatchPlayerController*, Owner) SLATE_END_ARGS()
+    SLATE_BEGIN_ARGS(SLocalMatchView) {} SLATE_ARGUMENT(ALocalMatchPlayerController*, Owner) SLATE_EVENT(FSimpleDelegate, OnExitGame) SLATE_END_ARGS()
     void Construct(const FArguments& Args);
     virtual ~SLocalMatchView() override;
     virtual void Tick(const FGeometry&,double CurrentTime,float DeltaTime) override;
@@ -19,6 +19,7 @@ public:
     virtual FReply OnMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& Event) override;
     uint8 SelectedCard() const;
     void CancelTargeting();
+    FReply ExitGame();
     void Refresh();
     void BoardClick(FIntPoint Coordinate);
     bool CanPlace(FIntPoint Coordinate) const;
@@ -27,6 +28,7 @@ public:
     const FMatchTetrisPose* GetTetrisPose() const;
 private:
     TWeakObjectPtr<ALocalMatchPlayerController> Owner;
+    FSimpleDelegate OnExitGame;
     bool IsSideTurn(uint8 Stone) const;
     bool bBlinkOn = true;
     double NextBlink = 0;

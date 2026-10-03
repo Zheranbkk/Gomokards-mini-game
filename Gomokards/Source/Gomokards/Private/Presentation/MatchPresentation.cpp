@@ -99,7 +99,7 @@ FString TargetingLabel(ECardId Selected)
     case ECardId::Barrier: Label=TEXT("BARRIER: select the CENTER of a cell between four intersections."); break;
     default: return TEXT("PLACEMENT MODE\nClick an intersection to place a stone. Only the active hand can play cards.");
     }
-    return Label + TEXT("\nRight-click, Escape or reselect the active card to cancel.");
+    return Label + TEXT("\nRight-click or reselect the active card to cancel. Escape exits the game.");
 }
 FString ResultLabel(const FMatchState& State)
 {

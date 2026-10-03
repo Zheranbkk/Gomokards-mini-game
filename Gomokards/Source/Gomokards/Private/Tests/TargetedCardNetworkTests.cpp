@@ -194,13 +194,16 @@ bool FTargetedCardNetworkTest::RunTest(const FString&)
     TGuardValue<bool> AllowLocalScript(GAllowActorScriptExecutionInEditor,true);
     Reset(); GM->Match.Players[0].Hand={ECardId::TacticalNuke,ECardId::Polarity,ECardId::Barrier}; GM->PublishViews();
     const auto BeforeSelection=GM->Match; const auto SelectionRevision=GM->Revision;
-    TSharedPtr<SLocalMatchView> View=SNew(SLocalMatchView).Owner(A);
+    int32 ExitRequests=0;
+    TSharedPtr<SLocalMatchView> View=SNew(SLocalMatchView).Owner(A).OnExitGame_Lambda([&ExitRequests]{++ExitRequests;});
     A->ToggleTargeting(uint8(ECardId::TacticalNuke));
     TestTrue(TEXT("Selection is local and not pending"),A->SelectedTargetedCard==uint8(ECardId::TacticalNuke) && !A->bPending);
     A->ToggleTargeting(uint8(ECardId::TacticalNuke)); TestEqual(TEXT("Reselect cancels"),A->SelectedTargetedCard,uint8(0));
     A->ToggleTargeting(uint8(ECardId::Polarity));
     View->OnPreviewKeyDown(FGeometry(),FKeyEvent(EKeys::Escape,FModifierKeysState(),0,false,0,0));
-    TestEqual(TEXT("Escape cancels"),A->SelectedTargetedCard,uint8(0));
+    TestTrue(TEXT("Escape requests local exit without cancelling or changing gameplay"),ExitRequests==1 && A->SelectedTargetedCard==uint8(ECardId::Polarity) && !A->bPending && GM->Match==BeforeSelection && GM->Revision==SelectionRevision);
+    View->ExitGame();
+    TestTrue(TEXT("Button handler shares local exit path without gameplay mutation"),ExitRequests==2 && A->SelectedTargetedCard==uint8(ECardId::Polarity) && GM->Match==BeforeSelection && GM->Revision==SelectionRevision);
     A->ToggleTargeting(uint8(ECardId::Barrier));
     View->OnMouseButtonDown(FGeometry(),FPointerEvent(0,FVector2D::ZeroVector,FVector2D::ZeroVector,TSet<FKey>{EKeys::RightMouseButton},EKeys::RightMouseButton,0,FModifierKeysState()));
     TestTrue(TEXT("Right-click cancellation no action/revision/RNG"),A->SelectedTargetedCard==0 && !A->bPending && GM->Match==BeforeSelection && GM->Revision==SelectionRevision);

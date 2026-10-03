@@ -134,7 +134,7 @@ void ALocalMatchPlayerController::ToggleTargeting(uint8 CardId)
     if (SelectedTargetedCard==CardId) { CancelTargeting(); return; }
     if (!CanTargetCard(CardId)) { return; }
     SelectedTargetedCard=CardId;
-    Feedback=TEXT("请选择目标；按 Esc 或右键取消。");
+    Feedback=TEXT("请选择目标；右键或重选卡牌取消，Esc 退出游戏。");
     OnPresentationChanged.Broadcast();
 }
 void ALocalMatchPlayerController::CancelTargeting()
