@@ -1367,3 +1367,242 @@ User acceptance of the new Exit controls remains pending; agent startup/exit smo
 3. Before exiting, verify right-click and reselect still cancel targeting without consuming a card/action, and Tetris arrows/Space retain focus and behavior.
 
 The existing sync/Development Editor command applies. This focused commit and subsequent package are explicitly requested before this user recheck; stop after the v0.1.2 deliverable.
+
+## Singleplayer Pivot — SP0 Architecture & Rules Impact Review
+
+审查日期：2026-10-09。审查源码为 `ue-migration` 的 `b975b6310128a4113d5a118acfc5f1d280586623`，即用户接受的已打包 Demo v0.1.2 多人实现基线，必须保留为重要回退/参照版本。本节是**只读源码审查与设计文档**，仅修改 README；单人模式、AI、新卡、Run 系统均未实现。此前 v0.1.2 小节的“提交时等待打包”是历史时点，打包随后已完成；这不构成物理双机 LAN 或 Internet 验证。
+
+**结论：需要少量前置接口拆分，不需要重写，也没有发现必须重建 Core 的结构性障碍。** 保留现有多人路径，以并列单人运行入口组合现有值状态和棋盘机制；SP1 是下一个建议实施检查点。以下 A 是用户已接受的产品决定，B 是待实施的架构建议，不能把建议字段名、缺省算法或待决选项当作冻结规则。历史多人规则仍然有效，单人改动不得反向覆盖它们。
+
+### A. 已接受的产品与规则决定
+
+- 产品转向单人 roguelike/deckbuilder：玩家跨战斗构筑牌组与棋诀；AI/Boss 使用棋力策略、主动能力、被动词条，**不持有玩家式牌组或假手牌**。遭遇规则独立于 Boss 词条。
+- 每回合一个主行动：落子、出牌、抽牌三选一；满手时的 Replace 是 Draw 的一种处理，不是第四种基础行动。接受后结束本方回合；拒绝/取消不消耗回合。AI 主动能力未来通常替代落子，被动默认不占主行动；SP1 AI 只落子。
+- 原型起手 3、手牌上限 5、初始牌组约 6–8 张；普通 Draw 抽 1 并结束回合。普通已打出的牌进弃牌堆；抽牌堆空时将弃牌堆洗回；Exhaust 只持续本场战斗，不删除 Run 卡牌。满手 Draw 需选一张弃掉，再抽 1 并结束回合。
+- 单人普通封堵**不自动获得卡牌**；未来棋诀“防守反击”才在成功封堵后从玩家牌堆抽 1。多人仍保持封堵后从旧十卡池随机生成一张。
+- SP1 只验证一场 19×19、正常五子连线的完整单人战斗；建议评估的最小卡池是两极反转、阴阳屏障、战术核弹、补充库存。无 Boss 能力、棋诀、Run 地图、商店、金币、奖励、存档或新卡。
+
+单人角色分类（所有旧 `ECardId` 与 PvP 实现保留）：
+
+| 旧卡 | 单人角色 | 已接受的单人方向 / 与旧版的差异 | SP1 |
+| --- | --- | --- | --- |
+| 两极反转 Polarity | A：玩家/Boss 共享效果 | 同一 2×2 翻色机制 | 建议纳入 |
+| 阴阳屏障 Barrier | A：玩家/Boss 共享效果 | 同一四角连接阻断机制 | 建议纳入 |
+| 战术核弹 TacticalNuke | A：玩家/Boss 共享效果 | 清空一个交点，本场永久禁用该点 | 建议纳入 |
+| 定位混淆 Confusion | D：移出单人 | 不删除旧共享行动计数机制 | 排除 |
+| 补充库存 Restock | B：仅玩家 | 从玩家牌堆抽 3，受上限 5 限制；溢出未定。旧版是随机生成 2 | 建议纳入 |
+| 战术换家 SwapHands | D：移出单人 | 不删除旧交换手牌实现 | 排除 |
+| 取之有道 Steal | B：仅玩家 | 随机获得当前 Boss 一个明确可偷取词条的玩家版本，非转移 Boss 运行对象 | 后续 |
+| 回归基本功 BackToBasics | B：仅玩家 | 本场压制玩家卡牌/棋诀、Boss 主动/被动；保留棋盘历史、五子规则与遭遇规则；兼容战斗 Exhaust | 后续 |
+| 幽灵棋子 Ghost | C：仅 Boss 词条/被动 | 复用准备/隐藏/揭示；AI 不得默认偷看真色 | 后续 |
+| 俄罗斯方块 Tetris | B：仅玩家 | 玩家操纵双方颜色、双方同色 5+ 连线均消除；系统决定颜色/形状；高影响战斗 Exhaust；约四次机会是方向，精确队列未冻结 | 后续 |
+
+移花接木、乾坤挪移、玉石俱焚、封穴、弃车保帅、破阵是后续候选，不属于 SP1；瓮中捉鳖、蓄势待发继续搁置。SP0 不为这些候选预建框架。
+
+### B. 架构建议与源码证据（未实施）
+
+#### 1. 当前可复用架构与复用矩阵
+
+以下路径相对 `Gomokards/Source/Gomokards/`，函数/类型名对应本次检查的实际源码。
+
+| 源码/机制 | 复用结论 | 具体边界 |
+| --- | --- | --- |
+| `Public/Core/MatchState.h`、`Private/Core/MatchState.cpp`：`FCell/FBoard` | 原样复用 | 361 格、`Y*19+X`、永久禁点、Barrier anchors；唯一权威棋盘，不能新增第二份可写 Board |
+| `Private/Core/MatchRules.cpp`：`HasWinningLine/EvaluateBoardResult` | SP1 原样复用 | Barrier 截断连接；至少五连；双颜色同时成线判和，胜者按棋色而非行动者。未来六连遭遇不能靠改全局 `WinLength` 实现 |
+| 同文件 `HasSuccessfulBlock` | 原样复用检测 | 原有八射线封堵判据刻意忽略 Barrier/禁点历史，不能顺手“修正”为新判据 |
+| `FMatchState/FMatchResult` | 组合复用值状态 | 保留唯一 Board/Players/CurrentPlayerIndex/CompletedActions/Result；整个 PvP resolver 并非通用单人内核 |
+| `ValidateAction/ResolveAction` | 小接口拆分 | 抽出双方共用的身份/落点检查及落子机制；保留 PvP 手续，单人另有牌堆与主行动事务 |
+| `Private/Cards/CardEffects.cpp` 的 Nuke/Polarity/Barrier 分支 | 小型提取后共享 | 从依赖双手牌的分派函数中提取校验与棋盘效果；不复制三套变更算法 |
+| `CardDefinitions/DrawCard` | 旧目录保持多人专用 | 十卡均匀有放回抽取不是牌堆；单人用很小的独立目录/定义表，不覆盖旧 Restock/Steal 等语义 |
+| `TetrisOffsets/TetrisGravity/TetrisTranslation/TetrisFits/BestTetrisSpawnAtEdge/ChooseTetrisSpawn/ClearTetrisLines` | 几何/候选生成/清线原样复用 | `ChooseTetrisSpawn` 已显式接收 RNG；Barrier 影响连线，不参与物理碰撞 |
+| `BeginTetris/SpawnOrSkipTetris/StepTetrisGravity/FinishTetris` | 后续拆分模式编排 | 六次机会、换操作者、反色、取下一块、结束合法行动检查存在硬耦合；不能把整套函数直接用于单人 |
+| Ghost 值状态、`BeginGhostHidden`、隐藏投影 | 复用机制，后续改入口 | 真色仍在唯一权威板；Boss 触发不走玩家持牌入口；AI 获取信息另设窄边界 |
+| `Private/Presentation/MatchPresentation.cpp`：`FBoardLayout` | SP1 几何原样复用 | 交点/2×2/格心命中、边界、Barrier 十字；当前 `TargetAt` 依旧卡 ID 找 target domain，SP1 三张目标牌域相同 |
+| `SLocalMatchView.cpp`、`SDemoCards.cpp`、`DemoPresentation.cpp` | 绘制复用，接线适配 | 棋盘/手牌并不是已解耦组件，需剥离具体网络 Controller/投影依赖；中文字形、贴图、卡框继续用 |
+| `ALocalMatchGameMode/GameState/PlayerController`、`MatchNetTypes`、网络测试 | 冻结保留 | RPC、owner-only 手牌、Epoch/Revision、Ghost/Tetris transport 和会话生命周期继续服务多人；不承载新牌堆 |
+| 玩家四牌堆、单人请求/解析器、AI 策略、本地视图 | 单人特有新增 | 小型 C++ 值状态与显式调用；不建立通用技能/事件/命令框架 |
+
+`FPlayerState` 的两个条目并不天然等于“两名真人”：ID、分配棋色与两方轮换仍适合人类对 AI。真正的冲突是 `Hand` 的所有权与旧抽卡/出牌规则，而不是棋盘必须重写。
+
+#### 2. 当前 ResolveAction 的精确耦合
+
+实际顺序如下：
+
+1. `ValidateAction` 拒绝终局、Tetris、Ghost 准备；检查恰好两名有效异色玩家和当前行动身份。落子校验范围/占用/禁点；出牌检查旧 `bCardsDisabled`、Ghost Hidden、旧目录、`Actor.Hand.Contains` 及目标域。
+2. 复制整个 `FMatchState` 为 Candidate。落子使用当前 Confusion 决定实际棋色；非 Hidden 时检查该落点胜负；计算封堵并**立刻向 Actor.Hand 添加 `DrawCard(Candidate.Random)`**。即使该落子胜利，封堵奖励仍执行。
+3. 出牌先从旧手牌移除第一张相同 ID，再调用 `ExecuteCardEffect`。后者进入 switch **之前**就取出双方 Hand 引用；不是无玩家/无持牌条件下可直接调用的 Boss 效果 API。
+4. 消耗进入行动前的共享 Confusion 计数，重施刷新为 2，Basics 清零；Polarity 才进行整板胜负扫描。Nuke/Barrier 不额外扫描；重复 Barrier/空点 Nuke/空区域 Polarity 等既有合法无变化操作仍可消费行动。
+5. Hidden 成功落子累计到 6 才揭示并全板裁决。完成行动计数加一；仅未终局才换当前玩家。Tetris 在普通行动换人后启动；末尾的 `HasLegalAction` 只认识可落交点和当前旧手牌，不能用于单人 Draw/Replace。
+6. 最后提交 Candidate，失败不提交，包含 RNG 回滚。`FActionResult.bBlockingReward` 当前同时承担“检测成功封堵”和“已授予奖励”的含义；网络 Ack/UI 已依赖奖励语义，不能全局改名义或直接拿它代表单人抽牌。
+
+`ALocalMatchGameMode::PublishViews` 还存在一个基于空位与网络卡白名单的会话可行动检查。直接复用该 GameMode 即使绕过 Core 手牌，也可能错误进入 SessionEnded。`NM_Standalone` 当前实际是同机轮流控制两方，并不会自动产生 AI。
+
+#### 3. 最小前置接口：复用机制，分开行动经济
+
+建议仅做以下明确拆分，随 SP1 首批实现，不单开全库清理：
+
+- **落子/封堵检测边界**：把既有双方身份、合法交点校验和“放实际棋色、计算该点连线、报告是否封堵”的机制提为窄函数。返回小型值结果（例如 `FPlacementOutcome` 的 `bSuccessfulBlock` 与棋色/落点/胜线事实），本身不抽卡、不改手牌、不转移回合。是否延迟胜负由现有 Ghost 调用方继续决定，不能在 helper 内擅自揭示 Hidden。
+- **共享棋盘效果边界**：把 Nuke/Polarity/Barrier 的目标域校验与现有 Board 变更提为少数显式函数，可操作事务 Candidate 的 `FBoard`。只做那三个效果，不做注册系统。两条玩法入口都用它们；它们不认识手牌、Boss 对象、网络或牌堆。Polarity 之后的全板裁决仍调用唯一 `EvaluateBoardResult`，Nuke/Barrier 保留既有裁决时点。
+- **行动经济边界**：旧 `ResolveAction` 保持原 API/外部行为，使用上述 helper 后自己执行旧封堵奖励、旧消费、Confusion/Ghost/Tetris 生命周期与旧可行动检查。新单人解析器使用同一机制但自己执行玩家牌堆事务和单人可行动查询。不在整个旧调用链插入 `bSingleplayer`，不先调用旧 resolver 再删奖励/恢复 RNG/纠正回合。
+
+单人建议单独的 `FSingleplayerActionRequest`，三个 Kind 为 Place、PlayCard、Draw；Draw 可带待替换卡实例，PlayCard 带卡实例和规范化目标。保留旧 `EActionType` 和网络请求原样，不为 Draw 添加多人 RPC。共用棋盘坐标/目标值类型即可，不强迫嵌套一个无法表达牌堆实例的 `FActionRequest`。
+
+同一个单人解析器有一个明确的成功完成点：`CompletedActions` 加一，未终局才按现有两方关系换人；Place/Play/Draw/Replace、将来的 AI 主动能力都走这里。无必要建立通用 CompleteAction 策略类；身份、落点、连线、效果算法不能复制，少量玩法专属的提交顺序由各自协调器明确表达。旧模式的计数/换人顺序及所有测试必须继续成立。
+
+#### 4. 推荐状态所有权、不变量与生命周期
+
+推荐 SP1 的 `FSingleplayerBattleState` **包含一个** `FMatchState Match`、一个 `FPlayerDeckState`、人类/AI 身份映射以及显式牌堆/AI RNG。不立即加入空的 EnemyAbilityState、RunState 或万能 BattleModifiers。`FMatchState` 作为可复用棋盘/两方状态容器保留，不宣称它的全部字段已经与 PvP 解耦。
+
+| 状态/数据 | 所有者与真值 | 变更边界与数据流 | 不变量、重置、测试缝 |
+| --- | --- | --- | --- |
+| Board、棋色、当前方、结果、行动数 | Battle.Match，且只有这一份 | 单人解析器 Candidate → 共享机制 → 一次提交 → 派生只读视图 | 不再建立 Battle.Board/Result/Turn 副本；整场 Reset；值状态相等测试包含全部字段 |
+| DrawPile/Hand/DiscardPile/ExhaustPile | Battle.PlayerDeck | 解析器移动卡实例；UI 只提交实例/目标 | 四区实例互斥、总数守恒、Hand≤5；每场重建；重复卡与跨洗牌测试 |
+| 旧 Players[i].Hand、旧模式字段 | 保留在 Match 中给 PvP 使用 | SP1 不写、不镜像单人 Hand | SP1 双方旧 Hand 为空、Confusion=0、Ghost=None、Tetris inactive、旧 cards-disabled=false；用断言/测试防串线 |
+| AI 身份与当前策略配置 | Battle 的只读敌方定义/身份；实际当前方仍为 Match | 本地 runtime 请求纯策略 → 返回 intent → 同一解析器 | AI 没有 Controller 假玩家/手牌；只在其回合行动；固定快照/种子测试 |
+| 敌方主动/被动运行状态（后续） | Battle 内小型 EnemyTraitState；静态定义单独只读 | 解析器处理使用、冷却、触发 | 战斗结束丢弃；不可被 UI/Steal 直接共享引用；能力资格/冷却测试 |
+| 棋诀、压制状态（后续） | Battle 的有效棋诀副本/压制位；永久所有权未来属于 Run | 明确行动结果 → 显式调用有效棋诀 → 同一事务 | Basics 只压制本场执行，不删除所有权；重置恢复；触发一次/压制测试 |
+| 遭遇定义（后续） | 战斗初始化输入的独立只读 EncounterRules | 解析器裁决读取；不附着在 Boss 可偷/可压制词条上 | Basics 不能清掉六连等遭遇约束；下一场重选；对照测试 |
+| 时序/待执行 AI 回调 | `ASingleplayerBattleGameMode` 的调度元数据 | 捕获战斗 generation/行动 serial，执行前重新验证 | Init/reset/EndPlay 失效旧回调；不作为第二份轮次状态；过期回调测试 |
+| 选择、hover、Replace 候选、日志 | 本地 Controller/Slate | 输入意图 → 解析器；读取提交后的本地视图 | 不可写 Board/Deck/RNG；reset 清空；取消与焦点测试 |
+| 未来 Run 牌组/金币/棋诀/路线 | 后续 Run owner，SP1 不实现 | Run 定义快照 → Battle 实例；战后显式结果/奖励命令回到 Run | Battle discard/Exhaust/Steal 不得直接修改永久牌组；以后另测跨战斗边界 |
+
+牌堆与棋盘在同一个 Battle Candidate 内原子提交；四牌堆外置不是建立第二份手牌真值。未来如很多共用函数真的只需要 Board/参与者，可再评估提取更小内核；SP1 不先搬迁所有 Match 字段。
+
+#### 5. 一回合的数据流、牌堆事务与 RNG
+
+建议流程：本地输入（含战斗 generation、预期行动 serial）→ 验证终局/当前方/卡实例/目标/替换资格 → 复制 Battle（包括各 RNG）→ 执行落子、共享效果或牌堆操作 → 汇总小型行动事实 → 单次完成/裁决/换人 → 提交 → 更新本地视图 → 若仍进行且轮到 AI，调度一次 AI 决策。玩家胜利或平局后不再额外给 AI 一次行动。
+
+牌堆表示建议为四个小数组，卡实例只需本场稳定 `InstanceId` 与定义 ID；允许多张同类卡，每张初始化时获得不同实例号。定义只存目标域、效果身份、抽牌数量、是否 Exhaust 等 SP1 真正需要的数据；普通 C++ 常量表足够，不需要 DataAsset/AssetManager/Deck 子系统。SP1 没有 Exhaust 卡也可以保留空 ExhaustPile 以统一守恒；不提供未获批准的 Exhaust 玩法。
+
+- 建场：从固定牌组清单复制实例，按明确种子洗牌、抽起手 3；不调用旧 `DrawCard`。洗牌只重排已有实例，普通抽牌只移动栈顶，不能每抽一张重新随机创建卡。
+- 出牌：先验证属于本人 Hand 和合法目标；在 Candidate 内移走精确实例、执行效果，再按已确认的时点进入 Discard/Exhaust。若处理中有临时“正在结算的卡”，它只是本次事务的局部值，不是永久第五牌堆；提交时所有实例回归四区之一。Restock 本身何时可被这次洗牌再抽到必须确认，不能无意沿用旧“先删除”的行为。
+- Draw/Replace：不足 5 张时 Draw 不接受多余替换参数；5 张时必须指明确实在 Hand 的实例。建议 UI 用同一个抽牌按钮进入本地选替换模式，再提交一个完整请求；取消无事务。顺序按需求为弃所选牌→必要时弃牌堆搬入抽牌堆并清空弃牌堆→洗牌→抽 1→完成行动。被替换牌是否可在此次回洗中立即抽回，在下方作为规则确认项列出。
+- 洗牌不能 `append` 后遗留 Discard 副本；普通 Draw 不碰 Exhaust。抽牌量/手牌上限在核心事务检查，不能只由按钮禁用保证。Restock 溢出与无可抽牌处理属于产品规则，下面的推荐不能视为实现决定。
+- 单人合法行动查询按当前方分别检查：人类的合法落子、可用四卡、Draw/Replace；AI 只检查合法落子。不调用旧 `HasLegalAction`，也不将牌堆 Hand 填回旧 Hand 来欺骗它。双方同时成线沿用现有 Draw；“没有合法行动”并不自动等于和棋。
+
+**RNG 建议：少量显式 stream，不建框架。** 保留 `Match.Random` 给旧 Core/未来棋盘模式，SP1 的共享三种棋盘效果不消费它；新增 `DeckRandom` 与 `AIRandom`，未来确有随机词条再加 `TraitRandom`。初始化可直接传入固定种子元组，普通运行由一个 battle seed 用固定、文档化的盐派生，避免依赖平台不稳定哈希。已有 PvP `Match.Random` 调用次数/顺序不变。
+
+AI tie-break 在 Candidate 的 AIRandom 副本上计算；若请求被拒绝/已过期，不提交该副本。不得先让策略修改 live RNG 再验证动作。排序与候选遍历稳定（例如行优先），只在确需随机平局选择时采样。测试应保证改变洗牌种子不改变同一棋盘的 AI tie-break 流；合法抽牌不扰动未来 AI 流；拒绝/取消保持所有 stream 不变。SP1 开始可用确定性平局优先，随机平局不是必需的新系统。
+
+#### 6. AI 与运行入口：并列小路径，不伪装网络玩家
+
+建议 `ASingleplayerBattleGameMode` 持有 Battle 并接收一个本地人类 Controller 的意图；AI 是普通 C++ 决策函数/小对象，由该 owner 调用。它接收只读策略输入，返回落点，不能拿可写 Board、Deck、GameMode 或 UObject 引用；最终仍走相同的单人解析器合法性/回合检查。无需 AIController、行为树、导航、感知系统或多线程搜索。
+
+SP1 最小策略建议：先枚举所有合法交点，试出自己立即获胜的位置，再试对手立即获胜的位置并优先封堵，余下用简单连通结构评分/稳定平局排序。模拟只在临时棋盘中完成，连线检查调用现有 `HasWinningLine` 并尊重 Barrier/禁点。多个无法同时封堵的威胁允许简单 AI 失误；不是保证不输的棋力指标。更深威胁搜索和随机 tie-break 可后置，不引入 ML、ONNX、LLM、强化学习或 MCTS 架构。
+
+每次提交后由 owner 检查权威当前方，只挂一个待执行 AI 回调（可以下一 tick 执行，无需人为延迟框架）；回调携带 generation/预期 CompletedActions，重置、结束或离开 world 后不得落子。AI 异常返回非法点时应无变化、报告诊断，不强行写板或无限递归重试。程序须区分“AI 找不到点”与“棋盘已终局”，没有合法落点的规则见待决项。
+
+并列入口应通过单独的开发启动/地图 GameMode override 等最小显式方式选择，不把既有 LocalMatch 默认配置改成单人，也不把 Run 字段塞进 `ALocalMatchGameMode`。单人 Controller 只负责局部意图、焦点和视图订阅，不发旧 gameplay RPC；AI 不是第二个远程 Controller。不需要新增单人 GameState 复制层。Battle 完成初始化之后才发布 ready 视图；reset 清本地选牌、日志和 pending intent；EndPlay 解绑委托并取消待执行回调，必要时 BeginDestroy 做幂等兜底。
+
+#### 7. 共享效果与未来能力边界
+
+**Boss Polarity 不等于 Boss 出一张牌。** 玩家入口验证本方 Hand 实例、消耗/归堆；Boss 入口未来验证该能力定义、资格、冷却和主行动限制；二者再调用同一个经过目标校验的棋盘效果函数。效果函数不得以“内部可信”为由省掉范围检查；Boss 未经授权的能力不能通过直接调用效果绕过协调器。效果返回值不能自行改变轮次。SP1 只实现前三种 Board 效果的小拆分，不提前建立 Boss ability registry。
+
+**封堵奖励迁移**：共享落子结果报告 `bSuccessfulBlock`；PvP 协调器继续在当前时点给 Actor.Hand 加一张旧随机卡，并保持 `bBlockingReward` Ack、中奖概率、胜利落子奖励、RNG 次数不变。SP1 协调器只观察事实，零奖励、零额外 RNG。未来“防守反击”在已成功行动事实后由小型 battle resolver 显式调用一次，从**有限玩家牌堆**抽 1，而非随机生成 ECardId。重复射线只给一次事实；拒绝请求没有事实。启用判定读 Battle 有效棋诀/压制位；无事件总线。未来触发时点、满手抽牌处理、终局封堵是否触发棋诀需在加入它时明确，不影响 SP1 的“无奖励”。
+
+**回归基本功**：旧 `bCardsDisabled` 不足以表达 Boss/棋诀/遭遇边界，而且旧 `CanPlayCards` 还绑定 Ghost/Tetris 状态。最小建议是后续 Battle 增加一个本场不可逆的 `bTricksSuppressed`，通过四个明确的资格判断控制玩家卡、玩家棋诀、Boss 主动、Boss 被动。因为当前要求四类一起关闭，不必先存四个可独立组合的状态位；如后来存在独立压制需求再增加。遭遇规则永远不读此压制位，基础合法落子/胜负仍有效。压制是持久的资格约束，词条对象不被销毁，偷来的玩家效果也必须受相应资格约束。
+
+Basics 还需要在同一事务中停止这些来源的**持续效果/挂起回调**，不能只禁止下次施放，却让旧被动继续 tick；每种实际存在的持续能力明确做清理，不能靠遍历通用标签猜测。既有 Nuke 禁点、Barrier、翻色、移除棋子属于 Board 历史，不回滚；本场 Exhaust 归堆照常。SP1 不实现该卡，所以它与未来 Ghost/Tetris 激活模式的压制/揭示/终止顺序、是否仍允许无意义 Draw 等细节留后续确认，不用为此先建状态框架。
+
+**取之有道**：最小建议为只读 BossTraitDefinition 的可选 PlayerCopyDefinitionId 映射，仅有映射的词条进入候选池。解析器在候选事务内按稳定候选序列用 TraitRandom 选择；创建明确的玩家临时卡或棋诀实例，不复制 Boss 的对象、冷却、timer、指针或权限。原 Boss 词条默认保留。玩家复制物的持续时间、重复获取叠加、没有候选时是否消耗、满手时去向、是否 Exhaust 都必须在该卡上线前定案；没有可用映射的 Boss 词条不需参与。SP1 不需要映射表或新接口实现。
+
+#### 8. Tetris 与 Ghost：可复用，但不能直接更改旧模式
+
+**Tetris 精确边界**：`FTetrisState::BlockLimit=6` 是常量；`SpawnOrSkipTetris` 每块用 `Match.Random` 抽形状、把块色设为操作者反色，跳过时换操作者；`StepTetrisGravity` 锁定/清线后也换操作者；`BeginTetris` 从普通换人后的 CurrentPlayerIndex 开始；`FinishTetris` 使用旧手牌版 `HasLegalAction`。因此将 BlockLimit 改成 4、固定 OperatorIndex 或改统一投影会破坏 PvP，不能作为单人实现捷径。
+
+后续到单人 Tetris 阶段，只把“姿态校验/移动/旋转/重力推进/锁定写板/清线”与“选下一块、序列次数、颜色、操作者、结束回合”分离为明确调用。复用现有 offsets、spawn 搜索、碰撞、四边引力、禁反向输入、无 kick 旋转、Barrier-aware 双色同时清线，不复制整个引擎。PvP 调用方保持六机会/交替/反色/现有 RNG；SP 调用方提供系统队列、固定人类控制身份及自己的结束策略。场上姿态只有一份，队列只描述尚未激活的块，不复制当前 Board。
+
+计时器的单调时间 deadline、generation、0.5 秒软降重置和“只有阻塞的自动重力才锁定”机制可复用；现有 runtime 同时处理网络 Pose/Revision，不能整类继承后删网络分支。SP1 没有 Tetris，不现在移动 timer 代码。约四次机会是否正好四次、堵塞出生是否算次数、精确形状/颜色/边缘策略、预告长度、预生成对 RNG 的影响、模式结束把回合交给谁均后续确认。保留旧 `FMatchTetrisPose` 的“只发送当前块”协议，单人预告用本地视图，不向多人新增未来队列。
+
+`ClearTetrisLines` 当前对整板先收集所有满足 `HasWinningLine` 的格，再同时清除，包含双方棋色、保留禁点/Barrier 且不塌落；这正是所需的共用机制。未来若遭遇要求六连获胜，不能把 Tetris 的既定 5+ 消线阈值意外一起改成六：两种规则需在实际加入遭遇时显式分开，不改当前全局常量。
+
+**Ghost 精确边界**：目前牌启动 Preparation，runtime 五秒真实时间后调用 `BeginGhostHidden`；真色一直留在 Board，Hidden 时投影只给 HiddenOccupied；六次成功落子后揭示/整板裁决。旧手牌限制、封堵真色奖励、计数和网络遮罩保留。Boss-only 启动未来通过能力入口使用相同准备/隐藏/揭示机制，而不是塞一张 Ghost 到 AI.Hand。
+
+建议从 SP1 开始让策略接口接受小型 `FAIPolicyView`（SP1 普通模式可见完整棋色），不是 `const FSingleplayerBattleState&`；只读完整 Battle 仍会泄露隐藏真色。以后 Ghost 由 owner 生成按允许信息遮罩的快照：可见占用/禁点/Barrier，但无隐藏颜色、玩家 Hand/牌堆顺序/全局 RNG。仅当 Boss 定义明确允许时增加信息能力；不能因本地权威同进程就默认全知。记忆与隐藏时如何评分留 Ghost 阶段，不建 belief 系统；即使允许人类记忆准备期，也不能悄悄给 AI 一份持续更新的真色板。测试未来应证明两份可观察快照相同而隐藏真色不同的局面，在相同策略状态/种子下给出相同决策。
+
+#### 9. Slate 复用与多人保全
+
+源码显示，`SMatchBoard` 定义在 `SLocalMatchView.cpp` 内，直接持有 `SLocalMatchView` 并读取 `FMatchPublicView`/网络卡白名单；`SDemoHand` 直接持有 `ALocalMatchPlayerController`，从 owner-only Hand/count 投影取数并发旧请求；`FTargetSelection` 同样检查旧 `FPlayerState.Hand`。这些都不能“不改接线就复用到单人”。
+
+SP1 只需小型展示接口拆分：绘制用只读 Board display/选中目标/可用性值，输入用明确 delegate；保留旧 Controller 的适配接线，再由单人本地视图喂同一棋盘/手牌绘制。采用少量 Slate attributes/delegates 即可，无需统一 ViewModel 框架、全 UI 重写或迁移 UMG。`FBoardLayout` 命中/坐标与牌框、字体、贴图、重叠/hover 算法保留。SP1 三张目标卡可以继续复用现有 ID 的相同目标域；以后新增目标形状才把 domain 作为直接输入，不提前建任意形状框架。
+
+`SDemoCard` 本身较轻，但文本从 `DemoCard(Id)` 的固定 PvP 定义取出；Restock 单人“抽 3”不能把旧定义的“抽 2”全局改掉。建议让卡片接受小型展示数据（名称/说明/贴图/可用性），由两个目录分别提供；同一个美术资源可以共享。日志不复用依赖 Epoch/公私投影差分的 `FDemoGameLog::Update` 作为权威事件推断：单人可直接把已提交的简短行动结果交给有界本地日志，保留布局而无需事件流。
+
+单人只增加一侧玩家手牌、抽牌/满手替换、牌堆/弃牌/Exhaust 数量、AI 身份与回合/结果。AI 区域不再展示假对手手牌；SP1 不造空词条面板或预告框。Esc/退出按钮继续是本地应用控制，右键/重选取消选牌；满手替换取消也不消费行动，且 Esc 仍退出。绘制、hover、焦点不访问权威 RNG。
+
+多人保全策略：以完整 SHA `b975b6310128a4113d5a118acfc5f1d280586623` 及已交付 v0.1.2 包作为可复现参照；本次不强制新建 tag/分支、不改写历史。GameMode、GameState、公私投影、RPC、网络测试和模式生命周期均保留。后续共享 helper/绘制组件的行为保持型提取允许旧调用点改接线，但不能改外部语义/协议；并列路径不等于复制整套 Core。每次提取跑完整旧套件，不能通过删测试或改变期待奖励/卡池来让单人通过。
+
+#### 10. 失败模式与阶段分类
+
+| 风险 | 级别 / 阶段 | 明确防线与验证 |
+| --- | --- | --- |
+| Battle 与 Match 各持一份 Board/Turn/Result | 高，REQUIRED FOR SP1 | 只组合 Match；UI 全部派生，拒绝/重置比较完整 Battle |
+| 把玩家 Deck.Hand 同步到旧 Hand，或给 AI 假牌 | 高，REQUIRED FOR SP1 | 旧双方 Hand 在 SP1 始终为空；共享 Board helper 无持牌前置条件 |
+| 调旧 resolver 后删掉奖励，导致 RNG/结束判断已污染 | 高，REQUIRED FOR SP1 | 检测与奖励分离；SP1 封堵卡数/RNG 无变化，PvP 原样加一 |
+| `if Singleplayer` 扩散至 Core/卡/UI/runtime | 高，REQUIRED FOR SP1 | 两个显式协调入口，少量共用机制；不改网络状态表达单人规则 |
+| Draw/Replace 洗牌复制卡、拒绝仍消费 RNG | 高，REQUIRED FOR SP1 | 整个 Battle 候选事务；按实例 ID 检查四区互斥和守恒；跨洗牌/过期请求测试 |
+| Draw 随机流改变 AI 决策，UI 多刷新导致不同结果 | 中高，REQUIRED FOR SP1 | Deck/AIRandom 分开，AI 决策在候选事务中消费；UI 不持 RNG |
+| AI 直接写 Board、同一回合重复调度、reset 后旧回调落子 | 高，REQUIRED FOR SP1 | 只返回 intent；统一解析器；generation/行动 serial 校验和取消 |
+| 满盘误判和棋、终局后 AI 多走一步 | 高，REQUIRED FOR SP1 | 独立单人可行动查询；终局先停止；确认无法落子规则，不套旧 SessionEnded |
+| Boss 绕过能力/目标校验 | 高，REQUIRED LATER | Boss 资格与共享 Board 校验分层；非法能力/坐标完整无变化 |
+| Basics 清遭遇/棋盘，或只禁新施放却留下持续被动 | 高，REQUIRED LATER | 分离压制与 EncounterRules；各持续能力显式清理；保留历史测试 |
+| Steal 共享 Boss 内部状态或临时牌写进永久 Run | 高，REQUIRED LATER | 显式玩家复制定义，新建 Battle 实例；Run 仅接受未来明确奖励命令 |
+| 为 SP 改六块限制/换人/队列而破坏 PvP | 高，REQUIRED LATER | 保留旧编排与测试；只提取共用运动/锁定机制，SP 序列另管 |
+| Ghost AI 读到权威隐藏真色 | 高，REQUIRED LATER；输入边界 SP1 保留 | 受限策略快照；禁止直接拿 Battle/Board 真值对象；可观察等价性测试 |
+| 抽 3 的展示仍来自 PvP 抽 2，或把 PvP 一并改掉 | 中，REQUIRED FOR SP1 | 独立小目录/展示输入；双目录回归 |
+
+范围归类：
+
+- **REQUIRED FOR SP1**：确认下列阻塞规则；共享落子/三 Board 效果窄拆分；Battle+四牌堆+事务+独立行动查询；并列 runtime/本地视图；最小合法落子 AI；Draw/Replace 与四卡子集；旧完整测试回归。
+- **REQUIRED LATER**：Boss 主动/被动、棋诀显式触发、Basics 压制及持续效果清理、Steal 玩家复制语义、Ghost 信息规则、SP Tetris 队列编排、遭遇胜负阈值、Run 与 Battle 生命周期分离。只在各自真实功能进入范围时实现。
+- **NICE TO HAVE**：固定种子录入便利、可选 AI 思考延迟、更强威胁评分、调试行动追踪、目录 DataAsset 化；不是 SP1 正确性的前提。
+- **DO NOT BUILD**：GAS、ECS、通用 modifier/event bus/技能图/状态机/AI/牌堆框架、完整 AI 搜索基础设施、ML/LLM/ONNX、假手牌、第二权威棋盘、为单人改造多人复制模型、现在建设商店/存档/Run 地图或 UMG 重写。
+
+未来六张新卡只暴露应保留的边界：多目标/实例与棋色校验、完整 Candidate 原子提交、棋盘变更后明确胜负时点、临时禁点与永久 Nuke 禁点分别表示、按成功行动推进期限、效果后调用同一有限牌堆抽牌。现在 `FCell.bForbidden` 无法表示来源/剩余时间，封穴上线时需旁侧临时禁点计时记录，不能到期把已有永久禁点清掉。相邻是四邻/八邻、Barrier 是否影响移动/交换或“不同连线”判定、破阵交叉线的去重、临时 3 行动起止时点均后续再定；不要为这些问题现在扩建 targeting/effect 系统。
+
+#### 11. SP1 最小实施顺序（仅设计）
+
+1. 定案第 13 节真正阻塞的规则，固定一个可复现的牌组/初始身份/种子 fixture；保留多人基线与既有 53 组测试。
+2. 先做落子/封堵事实和三张 Board 卡效果的行为保持型提取；旧入口调用新 helper，旧奖励/RNG/裁决顺序不变。用原用例及直接 helper 对照验证，不先移动所有 Core 文件。
+3. 实现纯值 Battle、四牌堆、三种请求及原子解析器；先测试 Draw/Replace/Restock、实例守恒、无封堵奖励、非法/过期请求完整无变化。再接胜负与单人合法行动查询。
+4. 实现只有合法落子的小型 AI 与受限只读输入；接入同一解析器和单次调度。先用固定局面验证赢一步、防一步与轮次，不提高搜索深度。
+5. 增加并列 GameMode/本地 Controller 入口与必要 Slate 接线，复用绘制、目标命中、卡片/字体，提供足够完成一局的 UI，不造 roguelike 外壳。
+6. 编译并跑完整 Gomokards 自动化（原 53 组保留，加 SP 测试）；静态检查权限/状态/RNG/资产引用，输出用户手动单局清单。用户验证后再按约定收尾，不把本次 SP0 当作实施授权。
+
+#### 12. SP1 明确验收标准（未来验证，不是本次结果）
+
+| 类别 | 可观察/可断言的通过条件 |
+| --- | --- |
+| 状态与初始化 | 同一固定牌组、身份、种子得到同一完整 Battle；一个权威 Board/CurrentPlayer/Result；起手恰好 3；双方旧 Hand 均为空；AI 无 Deck/假手牌 |
+| 主行动 | 合法 Place/Play/Draw/满手 Replace 分别只加一次 CompletedActions、只换一次当前方；已终局不再换人；非法/取消/重复 serial 不改任何状态或 stream |
+| 四牌堆 | Hand 始终≤5；重复同类牌仍有唯一实例；初始、打牌、Replace、跨多轮洗牌后实例全集完全一致且各实例恰好属于一区；无增牌/丢牌；Exhaust 不参与洗牌 |
+| Draw/Replace | 低于上限只抽 1；满手必须选当前有效实例；错误实例/旧选择/缺少替换请求不弃牌、不洗牌、不消费 RNG；成功原子弃 1 抽 1，无可见中间状态；溢出/回抽遵循已定规则 |
+| Restock | 只消费/归堆所选一张实例；尝试抽 3，实际入手/溢出/RNG/本牌是否可回抽与确认规则一致；不从十卡随机池生成牌 |
+| AI | 玩家非终局行动后恰好一个 AI 回合，只提交一个合法落点；固定局面与种子可复现；立即胜利/单点防败 fixture 正确；多个必败威胁不要求完美；无合法点处理遵守明确规则 |
+| AI 生命周期 | pending AI 不阻止状态检查；重置/结束/离开后旧任务不能写新战斗；玩家胜利后没有 AI 落子；没有在 AI 策略/UI 中写 live Board |
+| 封堵对照 | 同一个封堵局面 SP1 报告成功封堵但牌堆/旧 Hand/奖励 RNG 不变；PvP 仍按旧规则恰好生成 1 张卡，含多射线与胜利封堵 |
+| 棋盘效果 | Nuke 清点+永久禁点、Polarity 完整 2×2 翻色/空点不变/双胜和棋、Barrier 六条局部连接/重复部署语义与旧基线一致；目标越界原子拒绝，实际棋色归属正确 |
+| 终局/可行动 | 两方正常五子胜利和双胜和棋可结束一局；终局行动拒绝；单人牌堆合法动作不被旧 HasLegalAction/SessionEnded 漏判；满盘与 AI 无可落点 fixture 有已确认结果，不自行补 pass/胜者 |
+| RNG | 全 Battle 拒绝前后相等（含所有 stream 的初始/当前状态）；同棋盘改变 DeckRandom 不改变独立 AIRandom 决策序列；展示刷新/hover 不采样 |
+| 回归 | 原 53 个 Gomokards Automation 组及旧 PvP 卡池、手牌、Confusion、Ghost、六机会 Tetris、网络隐私/权限测试保留并通过；新测试单独记录数量，不把 SP 规则改进旧期待值 |
+| 可玩 UI | 一个人能完成落子/四卡/抽牌/满手替换/取消/AI 回合/结果/重开；牌堆数量可信、卡牌说明正确，AI 区域无假手牌；Esc/退出正常，未引入网络依赖 |
+
+SP1 实施完成时给用户的手动验收清单应覆盖：确认起手 3 与牌堆数量；轮流测试落子、四种牌与 Draw 的整回合成本；抽到 5 后 Replace/取消；洗牌不丢卡；封堵不赠牌；AI 合法响应一次；胜负/重开/退出。代理负责代码、编译、自动化和静态/编辑器级验证，实际玩法由用户执行；SP0 不请求现在试玩。
+
+#### 13. 仅以下规则阻塞 SP1 定案
+
+| 待确认项 | 为什么确实影响首个原型 | 最小建议（尚未接受） |
+| --- | --- | --- |
+| 玩家棋色与先手 | 初始化、第一轮 AI 调度、UI/fixture 都依赖它 | 玩家执黑、黑先；SP1 不做选边 UI |
+| 精确 6–8 张固定牌组及起手生成 | 实例总数、洗牌、平衡与验收需要确定输入 | 8 张，Polarity/Barrier/Nuke/Restock 各 2；建场洗牌后抽 3，测试固定种子 |
+| Restock 满手溢出与抽牌不足 | “抽 3”与 Hand≤5 必须有一致的可见结果/RNG 行为 | 本牌先离手；只抽可容纳的至多 3，额外额度不取牌不弃牌；可用堆彻底无牌时停止。不同设计如抽满再弃溢出会消耗不同牌/RNG，必须明确选择 |
+| 打出的 Restock 与被替换牌何时可参与此次回洗 | 抽牌堆恰好耗尽时可能立刻抽回同一张，影响守恒/期望结果 | 建议 Restock 完成效果后才进弃牌，避免本次回抽；Replace 按先弃再抽，允许在需要回洗时抽回所弃卡。确认这个时点即可，UI 无需额外架构决策 |
+| 当前方没有合法主行动，尤其 AI 没有合法落点 | AI 不持牌，满盘/禁点可使其无处落子，而人类可能仍能出 Nuke/Draw；现有 AwaitingRuleDecision 不能冒充完整玩法 | 必须在和棋/跳过/其他明确规则中选择；SP0 不替用户决定。未决定前应保留明确未定状态，不能宣称完整 SP1 验收 |
+
+Replace 必须原子、取消零变更已经是要求，不再询问；具体按钮位置/交互控件由实施时最小复用决定，不作为阻塞问题。未来棋诀满手奖励、Steal 期限/Exhaust/复制载体、Basics 与持续模式/Draw 的关系、Tetris 精确四块/预告/结束回合、新卡相邻/连线/临时期限定义、Ghost AI 记忆规则、遭遇六连如何配置，都可等 SP3 或相应功能真正进入范围时再讨论，不阻塞上述 SP1 子集。
+
+#### 14. 本次验证与停止点
+
+本次读取并追踪了 `MatchState/MatchRules`、卡定义/效果、TetrisRules、GameMode timer/Submit/Join/Leave/PublishViews、GameState 与公私投影、Controller 的输入/一致性/退出路径、Slate 棋盘/手牌/文案，以及相关 Core/卡牌/Ghost/Tetris/网络测试断言。现行规则以最新澄清与源码为准，例如 Basics 清 Confusion，不能误用早期 README 的历史保留规则。
+
+**本次没有编译、没有运行 Automation、没有打开/操作游戏、没有重新打包。** 上次 **53 passed / 0 failed / 0 test warnings / 0 skipped** 是 `b975b63` 的已有验证基线，本次不冒充重跑结果。仅 README 追加本审查；没有源码、配置、资产、地图、测试或多人实现修改。最终建议为“少量前置接口拆分 + 并列单人 runtime”，不是零拆分硬套，也不是重写；SP1 等规则确认与新的实施授权后再开始。SP0 到此停止。
