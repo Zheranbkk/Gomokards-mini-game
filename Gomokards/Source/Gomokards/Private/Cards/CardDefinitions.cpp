@@ -1,23 +1,14 @@
 #include "Cards/CardDefinitions.h"
-
 namespace Gomokards
 {
-static constexpr FCardDefinition Definitions[] = {
-    {ECardId::Restock, ECardTarget::None}, {ECardId::SwapHands, ECardTarget::None},
-    {ECardId::Steal, ECardTarget::None}, {ECardId::TacticalNuke, ECardTarget::Intersection},
-    {ECardId::Polarity, ECardTarget::RegionTopLeft}, {ECardId::Confusion, ECardTarget::None},
-    {ECardId::Barrier, ECardTarget::CellCenter}, {ECardId::BackToBasics, ECardTarget::None},
-    {ECardId::Ghost, ECardTarget::None}, {ECardId::Tetris, ECardTarget::None}
-};
-
-TConstArrayView<FCardDefinition> GetPlayableCards() { return MakeArrayView(Definitions); }
-
-const FCardDefinition* FindCardDefinition(ECardId Id)
+ECardTarget BoardEffectTarget(ECardId Id)
 {
-    for (const FCardDefinition& Definition : Definitions)
+    switch (Id)
     {
-        if (Definition.Id == Id) { return &Definition; }
+    case ECardId::TacticalNuke: return ECardTarget::Intersection;
+    case ECardId::Polarity: return ECardTarget::RegionTopLeft;
+    case ECardId::Barrier: return ECardTarget::CellCenter;
+    default: return ECardTarget::None;
     }
-    return nullptr;
 }
 }

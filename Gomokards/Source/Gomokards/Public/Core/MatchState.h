@@ -41,7 +41,7 @@ struct FPlayerState
 {
     FPlayerId Id = INDEX_NONE;
     EStone AssignedStone = EStone::Empty;
-    TArray<ECardId> Hand;
+    TArray<ECardId> Hand; // Legacy fixture compatibility only; not the future SP deck/hand model.
     bool operator==(const FPlayerState&) const = default;
 };
 
@@ -74,8 +74,8 @@ struct FMatchResult
     bool operator==(const FMatchResult&) const = default;
 };
 
-// Value state owned by the caller. ResolveAction/Reset and the explicit BeginGhostHidden
-// runtime transition, plus explicit Tetris operations, are the live mutation boundaries.
+// Shared deterministic value state; contains historical fixture fields for regression continuity.
+// SP1 resource/turn ownership is deliberately not defined here. No live runtime owner in SP0.5.
 // Public fields also allow explicit, UI-free test fixtures; they are not a UI write API.
 struct GOMOKARDS_API FMatchState
 {

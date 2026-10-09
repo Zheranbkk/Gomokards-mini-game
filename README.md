@@ -1,5 +1,10 @@
 # Gomokards Card Gomoku
 
+> **当前活动产品线：单人 Roguelike（SP0.5 架构基线，尚无单人对局）。**
+> 活动分支为 `singleplayer-roguelike`。多人 Demo v0.1.2 保存在 `multiplayer-v0.1.2` 与 `demo-v0.1.2-multiplayer`，源提交 `b975b6310128a4113d5a118acfc5f1d280586623`。
+> 下方 pygame、UE Phase 0–6 与 Demo 操作说明属于历史记录；其中多人启动、十张牌池及旧随机奖励不适用于当前活动 Game target。SP0.5 替代 SP0 中“保留多人运行时并行编译”的工程建议，产品规则以文末冻结规则为准。
+
+
 ## Refactoring Progress
 
 ### Phase 1: Structural Split Without Gameplay Changes (Completed)
@@ -1606,3 +1611,154 @@ Replace 必须原子、取消零变更已经是要求，不再询问；具体按
 本次读取并追踪了 `MatchState/MatchRules`、卡定义/效果、TetrisRules、GameMode timer/Submit/Join/Leave/PublishViews、GameState 与公私投影、Controller 的输入/一致性/退出路径、Slate 棋盘/手牌/文案，以及相关 Core/卡牌/Ghost/Tetris/网络测试断言。现行规则以最新澄清与源码为准，例如 Basics 清 Confusion，不能误用早期 README 的历史保留规则。
 
 **本次没有编译、没有运行 Automation、没有打开/操作游戏、没有重新打包。** 上次 **53 passed / 0 failed / 0 test warnings / 0 skipped** 是 `b975b63` 的已有验证基线，本次不冒充重跑结果。仅 README 追加本审查；没有源码、配置、资产、地图、测试或多人实现修改。最终建议为“少量前置接口拆分 + 并列单人 runtime”，不是零拆分硬套，也不是重写；SP1 等规则确认与新的实施授权后再开始。SP0 到此停止。
+
+
+## 单人转向 SP0.5 — 多人旧代码隔离与干净基线
+
+### 产品线与提交边界
+
+- 多人源基线：`b975b6310128a4113d5a118acfc5f1d280586623`；本地和远端分支 `multiplayer-v0.1.2`、带注释标签 `demo-v0.1.2-multiplayer` 均指向该提交。删除源码前已核对远端分支与标签解引用 SHA。
+- 活动分支：`singleplayer-roguelike`，从 SP0 文档提交 `48d10fd3b7503054effa0dcb62df035f112c030c` 创建。
+- `ue-migration` 保留，不重写历史、不强制推送。多人产品通过 Git 保留，不再作为单人运行入口。
+- 本阶段是源码重组，不是 SP1。没有实现牌堆、弃牌/消耗区、抽牌、换牌、Restock 抽三张、AI、Boss、单人回合循环、Run、商店、金币、棋诀或新卡。没有打包。
+
+### 工程实现决定（不是新增玩法）
+
+**运行代码与测试边界：** 删除 `Gomokards` 模块中的 `LocalMatchGameMode`、`LocalMatchPlayerController`、`LocalMatchGameState`、`MatchNetTypes` 四组头文件/实现，以及网络界面 `SLocalMatchView`。RPC、复制 DTO、私有手牌传输、座位与会话管理、Epoch/Revision、网络确认、网络 Ghost 遮蔽和 Tetris 姿态同步均退出活动源码。UE 自带网络代码未作裁剪。
+
+新增 `GomokardsTests` 模块，类型为 `Editor`，在 `PostEngineInit` 加载，仅 Editor target 引用。旧卡牌事务、十张牌抽取池、六块 Tetris 轮换与旧提示文字移到其私有 `Legacy/` 目录，作为共享规则的回归夹具，不是活动单人玩法。原 `WITH_DEV_AUTOMATION_TESTS` 在 Development Game 中也可能开启，故仅用该宏不能保证产品隔离；独立 Editor 模块提供实际编译边界。Game 模块不依赖此模块，测试模块依赖共享 Core，规则实现没有复制成“单人版本”。
+
+**保留的共享 Core：** `FBoard`/`FCell`、19×19 几何、黑白双方身份与索引、禁区、Barrier 连通性、胜负检查、成功阻挡判定、确定性状态/RNG、Ghost 显示状态转换、Tetris 形状/旋转/碰撞/四边出生选择/重力/同时消行。两侧棋盘逻辑不等于网络。
+
+**三个小接口边界：**
+
+1. `TryPlaceStone(FBoard&, Coordinate, Stone)` 验证并以候选副本提交落子，返回错误、`bSuccessfulBlock`、`bWinningLine`；不改手牌、随机数、行动次数、回合或模式。旧回归夹具调用同一接口后自行应用旧奖励，Game target 中没有旧随机发牌策略。阻挡检测只是一项规则信息，未实现防守反击。
+2. `ApplyTacticalNuke`、`ApplyPolarity`、`ApplyBarrier` 只接收棋盘和目标，先验证再修改，不要求伪造手牌/玩家或 PlayCard 请求。旧卡牌夹具委托这些唯一实现；未来卡牌或 Boss 的事务验证需在调用者完成。
+3. `StepTetrisPiece` 只返回 Rejected/Moved/Locked。锁定时写入棋子、调用现有消行逻辑并结束当前块，不选择下一块或轮换操作者；旧六块轮换留在测试夹具。`ApplyTetrisInput` 的绝对方向、禁止逆重力、旋转与碰撞规则保持。新运行时和计时器仍待未来阶段定义。
+
+**资源状态：** 暂留 `FPlayerState.Hand` 及历史效果字段以保持已有确定性状态比较、组合回归夹具和 Tetris/Ghost 规则测试；它们不是 SP 手牌/牌堆接口。活动运行代码没有旧抽牌、偷牌、换手牌或出牌事务入口，只有 Editor 私有夹具写入旧 Hand。SP1 必须显式拥有自己的战斗资源状态，不得把旧 Hand 当作 DrawPile/DiscardPile 系统。本阶段未提前创建 FRunState 或任何新资源容器。
+
+**卡牌定义：** 保留稳定枚举 ID；运行模块只保留三个棋盘效果的目标域元数据，不提供玩家可玩目录或抽牌池。十张旧牌的贴图引用是历史素材目录，不代表单人玩家牌池。单人角色边界记录为：两极反转/阴阳屏障/战术核弹是玩家与 Boss 共享效果；补充库存/取之有道（未来偷 Boss 特性）/回归基本功/俄罗斯方块为玩家牌；定位混淆与战术换家退出单人目录；幽灵棋子为 Boss 能力。以上新语义尚未实现。
+
+**表现层：** 从旧界面抽出 `SMatchBoard`，保留棋盘、棋子、禁区、Barrier、目标预览、Ghost 灰色显示与 Tetris 几何绘制。`SDemoCard`/`SDemoHand` 保留竖版卡面、中文字体、贴图占位接口、重叠/悬停及焦点回送；接收只读显示属性和点击/取消委托，不读取 Controller、复制快照或手牌权威状态。手牌点击返回槽位索引，避免重复卡牌 ID 混淆。移除对方隐藏手牌、远程身份、网络记录与确认反馈。完整单人界面尚未组合；键盘映射 helper 保留，Escape/游戏退出与屏幕焦点的应用层绑定留给后续真实界面。
+
+**地图/启动：** `LocalMatch.umap` 无被移除项目类的 GameMode 覆盖；不改二进制资产。`GlobalDefaultGameMode` 暂指向引擎 `GameModeBase`，默认地图不变。不为对称性新建空项目 GameMode。当前启动只是空架构基线，不应期待旧 Demo UI、可玩对局或 LAN 入口；测试加载原地图核对资产及覆盖引用。
+
+### 测试迁移审计
+
+以下网络组从活动分支删除，完整旧测试继续存在于冻结分支。表中的 Phase 1/2/3 引用现在都位于 Editor 专用 `Gomokards.LegacyFixtures.*`，不是单人产品验收规则。
+
+| 删除的旧组 | 共享断言去向；不迁移部分 |
+|---|---|
+| Phase4A.ProjectionSeparation | 棋盘/身份状态保留于 Phase1.MatchAndReset、Phase3A.ConfusionIdentityAndReward；复制公开/私有投影不迁移 |
+| Phase4A.ReflectedPrivacyAndRpcContract | 仅反射、复制条件及 RPC 合同，不属于共享规则，不迁移 |
+| Phase4A.AuthorityLifecycleAndPresentation | Phase1.InvalidActionsAtomic/BlockingMatrix/WinMatrixAndTerminal 保留拒绝、奖励夹具与胜负；共享点击迁到 Shared.PresentationIntentCallbacks；座位、断连、网络重启及版本协调不迁移 |
+| Phase4B1.CardRpcAndWhitelist | 旧牌池覆盖在 Phase1.DeterminismAndPool、Phase3A.PoolAndDeterminism；RPC 白名单与反射不迁移 |
+| Phase4B1.CardAuthorityPrivacyAndCoherence | Phase1.CardTransactions、InvalidActionsAtomic 保留旧手牌事务/顺序/RNG 原子性；私有传输和确认不迁移 |
+| Phase4B2.TargetRpcAndGeometry | 全 361 点 Nuke、18×18 Polarity/Barrier、边界及十字中心断言提取到 Shared.TargetGeometry；RPC 合同不迁移 |
+| Phase4B2.AuthorityOutcomesAndLocalTargeting | Phase1.NukeTransactions、Phase3A.PolarityAndDraw/BarrierTopology/BarrierWinningLines、Phase2.TargetingIntent 保留效果、胜负、取消与原子性；Shared.BoardEffectsWithoutHand 直接检查无手牌接口；网络状态不迁移 |
+| Phase4B3.PersistentAuthorityAndRecipes | Phase3A.ConfusionLifetime/ConfusionIdentityAndReward/BackToBasics/ReachableManualSetups 已覆盖共享计数、身份不变及不回滚棋盘历史；网络配方发布和私有视图不迁移 |
+| Phase5A.GhostTransportAuthorityAndLifecycle | Phase3B 的 7 个 Core 组保留隐藏落子计数、胜负延后、真颜色/奖励、持久化元数据与重置；另将网络夹具独有的“隐藏阶段最后合法位置用尽，不提前显色/虚构胜负”断言迁入 HiddenCountingAndRestrictions；遮蔽传输、会话结束和计时回调不迁移 |
+| Phase5B.TetrisAuthorityPoseAndLifecycle | Phase3C 的 10 个 Core 组保留四向移动拒绝原子性、碰撞、Barrier/禁区、出生、消行、轮换夹具和 RNG；新增 Shared.TetrisPhysicalStep 验证纯物理接口；姿态排序、token 和网络计时器不迁移 |
+
+另删除 `Phase2.RuntimeOwner`、`Phase3B.RuntimeTimerLifecycle`、`Phase3C.RuntimeGravityDeadlineAndLifecycle`：其所属运行对象和计时器已删除；状态重置/拒绝/模式转换保留在 Core 夹具中，不能把旧计时器测试通过冒充新单人运行时验证。
+
+旧 DemoUI 三组处理：`ChineseCardsAndCookableAssets` 的 11 个贴图、嵌入源与中文字体检查迁到 `Shared.FontArtAndStartupAssets`，旧十牌中文描述和对手身份/手牌计数不迁移；`LogPrivacyAndDisplayPriority` 随复制日志删除；`AcceptedPublicCardAndLocalTargeting` 的公开卡牌发布测试删除，本地意图/取消由 Phase2.TargetingIntent 和新显示回调测试覆盖。
+
+保留 37 个历史 Core/表现夹具组，新建 6 个共享组；所有测试仅在 Editor 模块编译。旧整套 53 组减去 10 个网络组、3 个运行时组、3 个 DemoUI 组，再增加 6 组，共 43 组。当前完整测试清单：
+
+```text
+Gomokards.LegacyFixtures.Phase1.BlockingMatrix
+Gomokards.LegacyFixtures.Phase1.CardTransactions
+Gomokards.LegacyFixtures.Phase1.DeterminismAndPool
+Gomokards.LegacyFixtures.Phase1.InvalidActionsAtomic
+Gomokards.LegacyFixtures.Phase1.MatchAndReset
+Gomokards.LegacyFixtures.Phase1.NukeTransactions
+Gomokards.LegacyFixtures.Phase1.RepeatedBlocking
+Gomokards.LegacyFixtures.Phase1.UnresolvedNoLegalAction
+Gomokards.LegacyFixtures.Phase1.WinMatrixAndTerminal
+Gomokards.LegacyFixtures.Phase2.BoardCoordinates
+Gomokards.LegacyFixtures.Phase2.TargetingIntent
+Gomokards.LegacyFixtures.Phase3A.BackToBasics
+Gomokards.LegacyFixtures.Phase3A.BarrierTopology
+Gomokards.LegacyFixtures.Phase3A.BarrierWinningLines
+Gomokards.LegacyFixtures.Phase3A.ConfusionIdentityAndReward
+Gomokards.LegacyFixtures.Phase3A.ConfusionLifetime
+Gomokards.LegacyFixtures.Phase3A.PolarityAndDraw
+Gomokards.LegacyFixtures.Phase3A.PoolAndDeterminism
+Gomokards.LegacyFixtures.Phase3A.PresentationDomains
+Gomokards.LegacyFixtures.Phase3A.ReachableManualSetups
+Gomokards.LegacyFixtures.Phase3B.ActivationAndPreparation
+Gomokards.LegacyFixtures.Phase3B.HiddenCountingAndRestrictions
+Gomokards.LegacyFixtures.Phase3B.PersistentEffectsAndReset
+Gomokards.LegacyFixtures.Phase3B.TrueColorRewardsAndConfusion
+Gomokards.LegacyFixtures.Phase3B.VisibilityAndPool
+Gomokards.LegacyFixtures.Phase3B.WinSuppressionAndReveal
+Gomokards.LegacyFixtures.Phase3B.WinningHiddenRewards
+Gomokards.LegacyFixtures.Phase3C.AbsoluteMovementAndCollision
+Gomokards.LegacyFixtures.Phase3C.ActivationAndEffects
+Gomokards.LegacyFixtures.Phase3C.CrowdedFallbackAndSkippedBlocks
+Gomokards.LegacyFixtures.Phase3C.FinalClearAdjudicationAndReset
+Gomokards.LegacyFixtures.Phase3C.FourEdgeSpawnAndClearance
+Gomokards.LegacyFixtures.Phase3C.GravityAndLocks
+Gomokards.LegacyFixtures.Phase3C.PoolShapeSamplingAndPresentation
+Gomokards.LegacyFixtures.Phase3C.ShapesAndRotation
+Gomokards.LegacyFixtures.Phase3C.SimultaneousConnectedLineClear
+Gomokards.LegacyFixtures.Phase3C.SixOperatorsAndDeterminism
+Gomokards.Shared.BoardEffectsWithoutHand
+Gomokards.Shared.FontArtAndStartupAssets
+Gomokards.Shared.PlacementWithoutReward
+Gomokards.Shared.PresentationIntentCallbacks
+Gomokards.Shared.TargetGeometry
+Gomokards.Shared.TetrisPhysicalStep
+```
+
+### SP1 冻结产品规则（仅记录，尚未实现）
+
+1. 玩家为黑方，先手。
+2. 原型初始牌组恰为 8 张：两极反转×2、阴阳屏障×2、战术核弹×2、补充库存×2；不是最终平衡。
+3. 起手 3 张，上限 5 张。
+4. 玩家每回合只接受一次主行动：落子、出牌、抽牌/满手换牌；成功行动结束玩家回合。
+5. 未满 5 张时，Draw 抽 1 张并结束回合。
+6. 满 5/5 时 Draw 变 Replace：选择恰好一张牌，事务内先移出手牌，抽一张替换牌；抽牌事务结束后才将旧牌放入弃牌堆，然后结束回合。正在替换的牌不能参加本次洗牌并立即被抽回。无效或取消不得改状态。
+7. 普通非 Exhaust 卡先从手中移出，完整结算效果及内部抽牌/洗牌后，才进入弃牌堆；Restock 不能在自己的效果中洗回并抽回自身。
+8. 单人 Restock 抽 3 张，但只抽至手牌上限 5；装不下的牌不抽、不丢弃、不烧毁，留在正常牌序中。
+9. 只有仍需抽牌且 DrawPile 为空时，才将可用 DiscardPile 确定性洗回。排除正在结算的出牌、替换牌和 ExhaustPile；RNG 由权威状态拥有。
+10. Exhaust 表示本场战斗移除，之后下一场归还；SP1 四种基础牌无须 Exhaust 行为。本阶段没有实现这些容器。
+11. 成功阻挡仍可检测，单人基线不自动发牌；防守反击留待未来。
+12. 尚无胜方且 AI 无合法落子位置时，SP1 判 Draw；不引入跳过回合。本阶段没有实现 AI 或该对局循环。
+
+### 验证与限制
+
+- 2026-10-09，UE 5.8.2，Win64 Development Editor：**通过**。构建前确认编辑器未运行，核验路径后删除本项目 `Intermediate` 和 `Binaries`；重新编译全部项目运行/Editor 测试源码。首轮新增 UI 测试的 Slate 坐标构造出现 C2665 类型歧义，改为显式 `FVector2D` 后修复；最终 Editor 构建成功。
+- Win64 Development Game：**通过**，生成 `Gomokards.exe`；未 Cook、Stage 或 Package。
+- 完整 `Automation RunTests Gomokards`：**43 通过、0 失败、0 测试警告、0 跳过/未运行、0 进行中**；其中历史 Core 夹具 37 组、共享接口 6 组。启动地图、贴图、字体、显示委托、无手牌棋盘效果和物理锁定接口均通过。不是人工玩法验收。
+- 测试日志之外的 Editor 初始化日志有 **1 条布局版本兼容警告**（`UnrealEd_Layout_v1.5/v1.6`），不是测试失败；未修改布局配置入库。日志没有 Error 记录。最终 Editor/Game 编译日志没有 C++ warning/error。
+- 源码/配置搜索指定项目网络符号：**0 残留**。扩大搜索 network/replication/server/client/RPC/epoch/session 后仅命中 Editor 测试的一条历史迁移说明；`LocalMatch` 仅为保留地图资源名，均非网络实现。
+- 实际 Game 链接响应文件 `Gomokards.exe.rsp` 只有 10 个项目运行源文件对应的对象：模块入口、CardDefinitions、MatchState、MatchRules、BoardEffects、TetrisRules、MatchPresentation、DemoPresentation、SDemoCards、SMatchBoard；没有 GomokardsTests、Legacy、原网络 Runtime 对象或测试对象。Editor 测试模块未进入 Game target。此结论不是包体大小估算，未裁剪引擎/插件网络能力。
+- 暂存差异检查通过：没有 Binaries/Intermediate/Saved/DDC、日志、缓存或二进制资产修改。所有本次工程产物、验证日志与报告位于 G 盘；本机报告为 `G:\GameDev\Logs\SP05\Automation\index.json`。
+
+当前是可构建的共享规则/绘制基线，不是可玩的单人版本。旧多人完整功能请切换冻结分支；不宣称单人玩法、LAN、Internet 或恶意 Host 保密验证。没有运行手动 gameplay，没有打包。本阶段按请求无需手工验收门槛；后续 gameplay 阶段仍由用户执行手动清单。
+
+### 本机切换与干净 Editor 构建
+
+先保存并关闭 Unreal Editor。以下命令假定采用当前 G 盘开发目录；clean 只删除该项目的两个生成目录，若工作区有未提交内容，先自行保存，勿强制切换。
+
+```powershell
+. G:\GameDev\Tools\Set-DevEnvironment.ps1
+Set-Location -LiteralPath 'G:\GameDev\Projects\Gomokards-mini-game'
+git fetch origin
+git switch singleplayer-roguelike
+git pull --ff-only origin singleplayer-roguelike
+
+$spProjectRoot = (Resolve-Path -LiteralPath '.\Gomokards').Path
+foreach ($spDir in @('Intermediate','Binaries')) {
+    $spPath = Join-Path $spProjectRoot $spDir
+    if (Test-Path -LiteralPath $spPath) {
+        $spResolved = (Resolve-Path -LiteralPath $spPath).Path
+        if ($spResolved -ne ($spProjectRoot + '\' + $spDir)) { throw 'Clean path mismatch' }
+        Remove-Item -LiteralPath $spResolved -Recurse -Force
+    }
+}
+& 'G:\GameDev\Unreal\UE_5.8\Engine\Build\BatchFiles\Build.bat' GomokardsEditor Win64 Development '-Project=G:\GameDev\Projects\Gomokards-mini-game\Gomokards\Gomokards.uproject' -WaitMutex -NoHotReloadFromIDE
+```

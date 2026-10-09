@@ -22,10 +22,10 @@ GOMOKARDS_API FIntPoint TetrisTranslation(ETetrisInput Input);
 GOMOKARDS_API bool TetrisFits(const FBoard& Board, TConstArrayView<FIntPoint> Offsets, FIntPoint Origin);
 GOMOKARDS_API FTetrisSpawn BestTetrisSpawnAtEdge(const FBoard& Board, ETetrisShape Shape, ETetrisEdge Edge);
 GOMOKARDS_API FTetrisSpawn ChooseTetrisSpawn(const FBoard& Board, ETetrisShape Shape, FRandomStream& Random);
-// Called only after the card resolver has completed/transferred the ordinary action.
-GOMOKARDS_API bool BeginTetris(FMatchState& State);
 GOMOKARDS_API bool ApplyTetrisInput(FMatchState& State, ETetrisInput Input);
-GOMOKARDS_API bool StepTetrisGravity(FMatchState& State);
+enum class ETetrisStep : uint8 { Rejected, Moved, Locked };
+// A physical step only. Locked ends the current piece; the caller owns subsequent mode policy.
+GOMOKARDS_API ETetrisStep StepTetrisPiece(FMatchState& State);
 // Collect all qualifying cells before deleting; committed board cells never collapse.
 GOMOKARDS_API int32 ClearTetrisLines(FBoard& Board);
 }

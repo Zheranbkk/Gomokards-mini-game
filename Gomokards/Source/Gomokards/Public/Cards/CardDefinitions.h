@@ -21,6 +21,6 @@ struct FCardDefinition
     bool RequiresTarget() const { return Target != ECardTarget::None; }
 };
 
-GOMOKARDS_API const FCardDefinition* FindCardDefinition(ECardId Id);
-GOMOKARDS_API TConstArrayView<FCardDefinition> GetPlayableCards();
+// Geometry metadata only; this does not expose a player catalog or draw pool.
+GOMOKARDS_API ECardTarget BoardEffectTarget(ECardId Id);
 }

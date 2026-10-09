@@ -1,8 +1,8 @@
+#include "Legacy/LegacyRules.h"
+#include "Legacy/LegacyPresentation.h"
 #include "Core/TetrisRules.h"
 #include "Core/MatchRules.h"
 #include "Presentation/MatchPresentation.h"
-#include "Runtime/LocalMatchGameMode.h"
-#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -35,7 +35,7 @@ void OpenRectangle(FBoard& B,int32 X,int32 Y,int32 Width,int32 Height)
 { for (int32 J=Y; J<Y+Height; ++J) { for (int32 I=X; I<X+Width; ++I) { B.At({I,J})={}; } } }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisActivation,"Gomokards.Phase3C.ActivationAndEffects",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisActivation,"Gomokards.LegacyFixtures.Phase3C.ActivationAndEffects",TetrisFlags)
 bool FTetrisActivation::RunTest(const FString&)
 {
     FMatchState S(9); S.ConfusionActionsRemaining=2;
@@ -60,7 +60,7 @@ bool FTetrisActivation::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisShapes,"Gomokards.Phase3C.ShapesAndRotation",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisShapes,"Gomokards.LegacyFixtures.Phase3C.ShapesAndRotation",TetrisFlags)
 bool FTetrisShapes::RunTest(const FString&)
 {
     TestEqual(TEXT("Exactly six definitions"),static_cast<int32>(ETetrisShape::Count),6);
@@ -89,7 +89,7 @@ bool FTetrisShapes::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisSpawnTest,"Gomokards.Phase3C.FourEdgeSpawnAndClearance",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisSpawnTest,"Gomokards.LegacyFixtures.Phase3C.FourEdgeSpawnAndClearance",TetrisFlags)
 bool FTetrisSpawnTest::RunTest(const FString&)
 {
     const FIntPoint Gravity[]={{0,1},{0,-1},{1,0},{-1,0}};
@@ -138,7 +138,7 @@ bool FTetrisSpawnTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisFallback,"Gomokards.Phase3C.CrowdedFallbackAndSkippedBlocks",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisFallback,"Gomokards.LegacyFixtures.Phase3C.CrowdedFallbackAndSkippedBlocks",TetrisFlags)
 bool FTetrisFallback::RunTest(const FString&)
 {
     FBoard B=ClosedBoard(); OpenRectangle(B,2,0,2,4); OpenRectangle(B,8,15,2,4);
@@ -167,7 +167,7 @@ bool FTetrisFallback::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisMovement,"Gomokards.Phase3C.AbsoluteMovementAndCollision",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisMovement,"Gomokards.LegacyFixtures.Phase3C.AbsoluteMovementAndCollision",TetrisFlags)
 bool FTetrisMovement::RunTest(const FString&)
 {
     for (ETetrisEdge Edge : Edges)
@@ -199,7 +199,7 @@ bool FTetrisMovement::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisGravityTest,"Gomokards.Phase3C.GravityAndLocks",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisGravityTest,"Gomokards.LegacyFixtures.Phase3C.GravityAndLocks",TetrisFlags)
 bool FTetrisGravityTest::RunTest(const FString&)
 {
     for (ETetrisEdge Edge : Edges)
@@ -222,7 +222,7 @@ bool FTetrisGravityTest::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisAlternation,"Gomokards.Phase3C.SixOperatorsAndDeterminism",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisAlternation,"Gomokards.LegacyFixtures.Phase3C.SixOperatorsAndDeterminism",TetrisFlags)
 bool FTetrisAlternation::RunTest(const FString&)
 {
     for (int32 Seed=0; Seed<16; ++Seed)
@@ -260,7 +260,7 @@ bool FTetrisAlternation::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisClearing,"Gomokards.Phase3C.SimultaneousConnectedLineClear",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisClearing,"Gomokards.LegacyFixtures.Phase3C.SimultaneousConnectedLineClear",TetrisFlags)
 bool FTetrisClearing::RunTest(const FString&)
 {
     for (EStone Color : {EStone::Black,EStone::White})
@@ -285,7 +285,7 @@ bool FTetrisClearing::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisExit,"Gomokards.Phase3C.FinalClearAdjudicationAndReset",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisExit,"Gomokards.LegacyFixtures.Phase3C.FinalClearAdjudicationAndReset",TetrisFlags)
 bool FTetrisExit::RunTest(const FString&)
 {
     auto S=TetrisFixture(); S.Tetris.BlockNumber=6; S.Tetris.Origin={8,17}; S.bCardsDisabled=true;
@@ -318,12 +318,12 @@ bool FTetrisExit::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisPoolAndView,"Gomokards.Phase3C.PoolShapeSamplingAndPresentation",TetrisFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisPoolAndView,"Gomokards.LegacyFixtures.Phase3C.PoolShapeSamplingAndPresentation",TetrisFlags)
 bool FTetrisPoolAndView::RunTest(const FString&)
 {
     TestEqual(TEXT("Exactly ten playable definitions"),GetPlayableCards().Num(),10);
-    TestTrue(TEXT("Tetris non-targeted definition"),FindCardDefinition(ECardId::Tetris) && !FindCardDefinition(ECardId::Tetris)->RequiresTarget());
-    for (ECardId Id : {ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unsupported cards excluded"),FindCardDefinition(Id)); }
+    TestTrue(TEXT("Tetris non-targeted definition"),FindLegacyCardDefinition(ECardId::Tetris) && !FindLegacyCardDefinition(ECardId::Tetris)->RequiresTarget());
+    for (ECardId Id : {ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unsupported cards excluded"),FindLegacyCardDefinition(Id)); }
     TArray<ETetrisShape> Seen;
     for (int32 Seed=0; Seed<64; ++Seed)
     {
@@ -345,68 +345,4 @@ bool FTetrisPoolAndView::RunTest(const FString&)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTetrisRuntimeTest,"Gomokards.Phase3C.RuntimeGravityDeadlineAndLifecycle",TetrisFlags)
-bool FTetrisRuntimeTest::RunTest(const FString&)
-{
-    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
-    if (!TestNotNull(TEXT("Transient world"),World)) { return false; }
-    auto* Owner=World->SpawnActor<ALocalMatchGameMode>();
-    if (!TestNotNull(TEXT("Owner"),Owner)) { World->DestroyWorld(false); return false; }
-    int32 Notifications=0; Owner->OnMatchChanged.AddLambda([&Notifications]{++Notifications;});
-    auto Cast=[&]()
-    {
-        Owner->StartWithSeed(9);
-        for (FIntPoint P : {FIntPoint(0,0),FIntPoint(1,0),FIntPoint(2,0),FIntPoint(18,18)})
-        { TestTrue(TEXT("Natural seeded opening accepted"),Owner->Submit(FActionRequest::Place(Owner->GetMatch().Players[Owner->GetMatch().CurrentPlayerIndex].Id,P)).IsAccepted()); }
-        TestTrue(TEXT("Naturally earned Tetris cast"),Owner->Submit(FActionRequest::Play(0,ECardId::Tetris)).IsAccepted());
-    };
-    Cast();
-    TestTrue(TEXT("One gravity ticker scheduled"),Owner->TetrisTicker.IsValid() && Owner->TetrisDeadline>0);
-    const auto Generation=Owner->TetrisTimerGeneration; const double Deadline=Owner->TetrisDeadline;
-    const auto Before=Owner->GetMatch(); const int32 Count=Notifications;
-    TestTrue(TEXT("Pre-deadline poll does not move or notify"),Owner->PollTetrisGravity(Deadline-.001,Generation) && Owner->GetMatch()==Before && Notifications==Count);
-    TestTrue(TEXT("Deadline advances one cell and next deadline by 0.5s"),Owner->PollTetrisGravity(Deadline,Generation) && Owner->GetMatch().Tetris.Origin==Before.Tetris.Origin+TetrisGravity(Before.Tetris.Edge) && Owner->TetrisDeadline==Deadline+.5 && Notifications==Count+1);
-    const auto After=Owner->GetMatch(); Owner->PollTetrisGravity(Deadline,Generation);
-    TestTrue(TEXT("Same deadline cannot tick twice"),Owner->GetMatch()==After && Notifications==Count+1);
-    for (ETetrisEdge Edge : Edges)
-    for (int32 I=0; I<4; ++I)
-    {
-        Owner->Match=TetrisFixture(Edge); Owner->TetrisDeadline=100;
-        const auto BeforeInput=Owner->GetMatch(); const int32 BeforeInputNotifications=Notifications;
-        if (Moves[I]==OppositeInputs[static_cast<int32>(Edge)])
-        {
-            TestTrue(TEXT("Runtime opposite key rejects without state mutation or notification"),!Owner->SubmitTetrisAt(Moves[I],90) && Owner->GetMatch()==BeforeInput && Notifications==BeforeInputNotifications);
-            TestEqual(TEXT("Rejected opposite key preserves automatic gravity deadline"),Owner->TetrisDeadline,100.0);
-        }
-        else
-        {
-            TestTrue(TEXT("Runtime gravity/perpendicular movement accepted"),Owner->SubmitTetrisAt(Moves[I],90));
-            TestEqual(TEXT("Only successful gravity-direction movement resets deadline"),Owner->TetrisDeadline,Deltas[I]==TetrisGravity(Edge) ? 90.5 : 100.0);
-        }
-    }
-    Owner->Match=TetrisFixture(); Owner->Match.Tetris.Origin={8,17}; Owner->TetrisDeadline=100;
-    const auto Blocked=Owner->GetMatch(); const int32 BeforeReject=Notifications;
-    TestTrue(TEXT("Blocked soft drop no lock/deadline/notification"),!Owner->SubmitTetrisAt(ETetrisInput::Down,90) && Owner->GetMatch()==Blocked && Owner->TetrisDeadline==100 && Notifications==BeforeReject);
-    Owner->Match=TetrisFixture(); Owner->TetrisDeadline=100;
-    TestTrue(TEXT("Rotation never resets deadline"),Owner->SubmitTetrisAt(ETetrisInput::Rotate,90) && Owner->TetrisDeadline==100);
-    Owner->Match.Tetris.Shape=ETetrisShape::Line; Owner->Match.Tetris.Rotation=0; Owner->Match.Tetris.Origin={18,8};
-    const auto RotationBlocked=Owner->GetMatch();
-    TestTrue(TEXT("Rejected rotation preserves timer/state"),!Owner->SubmitTetrisAt(ETetrisInput::Rotate,90) && Owner->TetrisDeadline==100 && Owner->GetMatch()==RotationBlocked);
-    Cast(); const auto OldGeneration=Owner->TetrisTimerGeneration; const auto OldDeadline=Owner->TetrisDeadline;
-    Owner->NewMatch(); const auto Fresh=Owner->GetMatch();
-    TestTrue(TEXT("Restart cancels/reset timer and complete state"),!Owner->TetrisTicker.IsValid() && Owner->TetrisDeadline==0 && Fresh==FMatchState(Fresh.Random.GetInitialSeed()));
-    Owner->PollTetrisGravity(OldDeadline+50,OldGeneration);
-    TestTrue(TEXT("Stale callback cannot change new match"),Owner->GetMatch()==Fresh);
-    Cast(); const auto NewMode=Owner->GetMatch(); const auto NewDeadline=Owner->TetrisDeadline;
-    Owner->PollTetrisGravity(OldDeadline+50,OldGeneration);
-    TestTrue(TEXT("Stale callback cannot move a newer Tetris block"),Owner->GetMatch()==NewMode && Owner->TetrisDeadline==NewDeadline && Owner->TetrisTicker.IsValid());
-    int32 Steps=0;
-    while (Owner->GetMatch().Tetris.bActive && Steps++<500) { Owner->PollTetrisGravity(Owner->TetrisDeadline,Owner->TetrisTimerGeneration); }
-    TestTrue(TEXT("Six blocks cancel timer on exit without sleeping"),!Owner->GetMatch().Tetris.bActive && !Owner->TetrisTicker.IsValid() && Owner->TetrisDeadline==0 && Steps<500);
-    Cast(); const auto TeardownGeneration=Owner->TetrisTimerGeneration; const auto TeardownDeadline=Owner->TetrisDeadline;
-    Owner->EndPlay(EEndPlayReason::Quit); const auto EndState=Owner->GetMatch();
-    TestTrue(TEXT("EndPlay cancels and invalidates callback"),!Owner->TetrisTicker.IsValid() && !Owner->PollTetrisGravity(TeardownDeadline,TeardownGeneration) && Owner->GetMatch()==EndState);
-    Owner->OnMatchChanged.Clear(); World->DestroyWorld(false);
-    return true;
-}
 #endif

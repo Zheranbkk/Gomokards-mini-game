@@ -10,6 +10,6 @@ public class GomokardsEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
-		ExtraModuleNames.Add("Gomokards");
+		ExtraModuleNames.AddRange(new string[] { "Gomokards", "GomokardsTests" });
 	}
 }

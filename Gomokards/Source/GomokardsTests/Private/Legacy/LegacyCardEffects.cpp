@@ -1,4 +1,6 @@
-#include "Cards/CardEffects.h"
+#include "Legacy/LegacyCardEffects.h"
+#include "Legacy/LegacyRules.h"
+#include "Core/BoardEffects.h"
 
 namespace Gomokards
 {
@@ -31,18 +33,11 @@ bool ExecuteCardEffect(FMatchState& Candidate, int32 ActorIndex, ECardId Card, T
         }
         return true;
     case ECardId::TacticalNuke:
-        if (!Target.IsSet() || !FBoard::Contains(Target.GetValue())) { return false; }
-        Candidate.Board.At(Target.GetValue()) = {EStone::Empty, true};
-        return true;
+        return Target.IsSet() && ApplyTacticalNuke(Candidate.Board, Target.GetValue());
     case ECardId::Polarity:
-        if (!Target.IsSet() || !FBoard::ContainsAnchor(Target.GetValue())) { return false; }
-        for (FIntPoint Corner : FBoard::RegionCorners(Target.GetValue()))
-        { Candidate.Board.At(Corner).Stone = OppositeStone(Candidate.Board.At(Corner).Stone); }
-        return true;
+        return Target.IsSet() && ApplyPolarity(Candidate.Board, Target.GetValue());
     case ECardId::Barrier:
-        if (!Target.IsSet() || !FBoard::ContainsAnchor(Target.GetValue())) { return false; }
-        Candidate.Board.Barriers.AddUnique(Target.GetValue());
-        return true;
+        return Target.IsSet() && ApplyBarrier(Candidate.Board, Target.GetValue());
     case ECardId::Confusion:
         return true; // Common resolver owns the explicit old-duration / refresh ordering.
     case ECardId::Ghost:

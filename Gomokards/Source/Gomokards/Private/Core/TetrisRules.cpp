@@ -126,37 +126,6 @@ int32 ClearTetrisLines(FBoard& Board)
     for (int32 I : Removed) { Board.Cells[I].Stone=EStone::Empty; }
     return Removed.Num();
 }
-static void FinishTetris(FMatchState& State)
-{
-    State.Tetris={};
-    State.Result=EvaluateBoardResult(State.Board);
-    if (State.Result.Status==EMatchStatus::InProgress && !HasLegalAction(State))
-    { State.Result={EMatchStatus::AwaitingRuleDecision,EStone::Empty,EDecisionReason::NoLegalAction}; }
-}
-static void SpawnOrSkipTetris(FMatchState& State)
-{
-    auto& T=State.Tetris;
-    while (T.BlockNumber<=FTetrisState::BlockLimit)
-    {
-        T.Shape=static_cast<ETetrisShape>(State.Random.RandRange(0,static_cast<int32>(ETetrisShape::Count)-1));
-        T.Rotation=0;
-        T.Stone=OppositeStone(State.Players[T.OperatorIndex].AssignedStone);
-        const auto Spawn=ChooseTetrisSpawn(State.Board,T.Shape,State.Random);
-        if (Spawn.bLegal) { T.Edge=Spawn.Edge; T.Origin=Spawn.Origin; return; }
-        ++T.BlockNumber; T.OperatorIndex=SingleOpponentIndex(State,T.OperatorIndex);
-    }
-    // Skips write/clear no cells. Final evaluation still runs even when all six were skipped.
-    FinishTetris(State);
-}
-bool BeginTetris(FMatchState& State)
-{
-    if (State.Result.Status!=EMatchStatus::InProgress || State.Tetris.bActive
-        || State.GhostPhase!=EGhostPhase::None || SingleOpponentIndex(State,State.CurrentPlayerIndex)==INDEX_NONE) { return false; }
-    State.Tetris={}; State.Tetris.bActive=true; State.Tetris.BlockNumber=1;
-    State.Tetris.OperatorIndex=State.CurrentPlayerIndex;
-    SpawnOrSkipTetris(State);
-    return true;
-}
 static bool HasActiveTetris(const FMatchState& State)
 {
     return State.Result.Status==EMatchStatus::InProgress && State.Tetris.bActive
@@ -177,18 +146,17 @@ bool ApplyTetrisInput(FMatchState& State, ETetrisInput Input)
     State.Tetris=Candidate;
     return true;
 }
-bool StepTetrisGravity(FMatchState& State)
+ETetrisStep StepTetrisPiece(FMatchState& State)
 {
-    if (!HasActiveTetris(State)) { return false; }
+    if (!HasActiveTetris(State)) { return ETetrisStep::Rejected; }
     auto& T=State.Tetris;
     const auto Cells=TetrisOffsets(T.Shape,T.Rotation);
-    if (!TetrisFits(State.Board,Cells,T.Origin)) { return false; } // Trusted fixtures must still be physically valid.
+    if (!TetrisFits(State.Board,Cells,T.Origin)) { return ETetrisStep::Rejected; } // Trusted fixtures must still be physically valid.
     const auto Next=T.Origin+TetrisGravity(T.Edge);
-    if (TetrisFits(State.Board,Cells,Next)) { T.Origin=Next; return true; }
+    if (TetrisFits(State.Board,Cells,Next)) { T.Origin=Next; return ETetrisStep::Moved; }
     for (FIntPoint Offset : Cells) { State.Board.At(T.Origin+Offset).Stone=T.Stone; }
     ClearTetrisLines(State.Board);
-    ++T.BlockNumber; T.OperatorIndex=SingleOpponentIndex(State,T.OperatorIndex);
-    SpawnOrSkipTetris(State);
-    return true;
+    T.bActive=false;
+    return ETetrisStep::Locked;
 }
 }

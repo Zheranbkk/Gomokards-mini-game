@@ -1,6 +1,6 @@
+#include "Legacy/LegacyRules.h"
+#include "Legacy/LegacyPresentation.h"
 #include "Presentation/MatchPresentation.h"
-#include "Runtime/LocalMatchGameMode.h"
-#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -10,7 +10,7 @@ namespace
 {
 constexpr EAutomationTestFlags Flags = EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardInput, "Gomokards.Phase2.BoardCoordinates", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardInput, "Gomokards.LegacyFixtures.Phase2.BoardCoordinates", Flags)
 bool FBoardInput::RunTest(const FString& Parameters)
 {
     for (int32 Y=0; Y<FBoard::Size; ++Y)
@@ -27,7 +27,7 @@ bool FBoardInput::RunTest(const FString& Parameters)
     TestFalse(TEXT("Bottom edge outside"), FBoardLayout::ToCoordinate({0,570}).IsSet());
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetInput, "Gomokards.Phase2.TargetingIntent", Flags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetInput, "Gomokards.LegacyFixtures.Phase2.TargetingIntent", Flags)
 bool FTargetInput::RunTest(const FString& Parameters)
 {
     FMatchState State(103);
@@ -56,33 +56,6 @@ bool FTargetInput::RunTest(const FString& Parameters)
     TestFalse(TEXT("Stopped match cannot enter targeting"), Selection.Toggle(State,ECardId::TacticalNuke));
     State.Result.Status=EMatchStatus::Won; State.Result.WinningStone=EStone::White;
     TestTrue(TEXT("Winner label follows result"), ResultLabel(State).StartsWith(TEXT("White wins")));
-    return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRuntimeOwner, "Gomokards.Phase2.RuntimeOwner", Flags)
-bool FRuntimeOwner::RunTest(const FString& Parameters)
-{
-    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
-    if (!TestNotNull(TEXT("Transient runtime world"),World)) { return false; }
-    auto* MatchOwner=World->SpawnActor<ALocalMatchGameMode>();
-    if (!TestNotNull(TEXT("Runtime owner spawned"),MatchOwner)) { World->DestroyWorld(false); return false; }
-    int32 Notifications=0;
-    MatchOwner->OnMatchChanged.AddLambda([&Notifications]{++Notifications;});
-    MatchOwner->StartWithSeed(73);
-    TestTrue(TEXT("Explicit seed reproducible"),MatchOwner->GetMatch()==FMatchState(73));
-    TestEqual(TEXT("Start notifies once"),Notifications,1);
-    const auto Player=MatchOwner->GetMatch().Players[0].Id;
-    TestTrue(TEXT("Owner submits to core"),MatchOwner->Submit(FActionRequest::Place(Player,{2,2})).IsAccepted());
-    const FMatchState Before=MatchOwner->GetMatch();
-    TestFalse(TEXT("Owner exposes rejection"),MatchOwner->Submit(FActionRequest::Place(Player,{2,2})).IsAccepted());
-    TestTrue(TEXT("Rejected live state unchanged including RNG"),MatchOwner->GetMatch()==Before);
-    TestEqual(TEXT("Only accepted action notifies"),Notifications,2);
-    MatchOwner->NewMatch();
-    const auto& Fresh=MatchOwner->GetMatch();
-    TestTrue(TEXT("Normal restart explicitly chooses a new seed"),Fresh.Random.GetInitialSeed()!=73);
-    TestTrue(TEXT("Restart clean with its new session seed"),Fresh==FMatchState(Fresh.Random.GetInitialSeed()));
-    TestEqual(TEXT("Restart notifies once"),Notifications,3);
-    MatchOwner->OnMatchChanged.Clear();
-    World->DestroyWorld(false);
     return true;
 }
 }

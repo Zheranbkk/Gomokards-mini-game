@@ -1,3 +1,5 @@
+#include "Legacy/LegacyRules.h"
+#include "Legacy/LegacyPresentation.h"
 #include "Core/MatchRules.h"
 #include "Misc/AutomationTest.h"
 
@@ -22,7 +24,7 @@ void RejectUnchanged(FAutomationTestBase& Test, FMatchState& State, const FActio
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchBasics, "Gomokards.Phase1.MatchAndReset", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchBasics, "Gomokards.LegacyFixtures.Phase1.MatchAndReset", MatchRulesFlags)
 bool FMatchBasics::RunTest(const FString& Parameters)
 {
     FMatchState State(73);
@@ -51,7 +53,7 @@ bool FMatchBasics::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInvalidActions, "Gomokards.Phase1.InvalidActionsAtomic", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInvalidActions, "Gomokards.LegacyFixtures.Phase1.InvalidActionsAtomic", MatchRulesFlags)
 bool FInvalidActions::RunTest(const FString& Parameters)
 {
     FMatchState State(11);
@@ -83,7 +85,7 @@ bool FInvalidActions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBlockingMatrix, "Gomokards.Phase1.BlockingMatrix", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBlockingMatrix, "Gomokards.LegacyFixtures.Phase1.BlockingMatrix", MatchRulesFlags)
 bool FBlockingMatrix::RunTest(const FString& Parameters)
 {
     const FIntPoint Rays[] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,-1},{1,-1},{-1,1}};
@@ -134,7 +136,7 @@ bool FBlockingMatrix::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRepeatedBlocking, "Gomokards.Phase1.RepeatedBlocking", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRepeatedBlocking, "Gomokards.LegacyFixtures.Phase1.RepeatedBlocking", MatchRulesFlags)
 bool FRepeatedBlocking::RunTest(const FString& Parameters)
 {
     FMatchState State(12);
@@ -149,7 +151,7 @@ bool FRepeatedBlocking::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWinMatrix, "Gomokards.Phase1.WinMatrixAndTerminal", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWinMatrix, "Gomokards.LegacyFixtures.Phase1.WinMatrixAndTerminal", MatchRulesFlags)
 bool FWinMatrix::RunTest(const FString& Parameters)
 {
     for (FIntPoint Direction : {FIntPoint(1,0), FIntPoint(0,1), FIntPoint(1,1), FIntPoint(1,-1)})
@@ -188,7 +190,7 @@ bool FWinMatrix::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCardTransactions, "Gomokards.Phase1.CardTransactions", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FCardTransactions, "Gomokards.LegacyFixtures.Phase1.CardTransactions", MatchRulesFlags)
 bool FCardTransactions::RunTest(const FString& Parameters)
 {
     FMatchState Restock(123);
@@ -233,7 +235,7 @@ bool FCardTransactions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNukeTransactions, "Gomokards.Phase1.NukeTransactions", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNukeTransactions, "Gomokards.LegacyFixtures.Phase1.NukeTransactions", MatchRulesFlags)
 bool FNukeTransactions::RunTest(const FString& Parameters)
 {
     for (EStone Existing : {EStone::Empty, EStone::Black, EStone::White})
@@ -257,7 +259,7 @@ bool FNukeTransactions::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeterminism, "Gomokards.Phase1.DeterminismAndPool", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeterminism, "Gomokards.LegacyFixtures.Phase1.DeterminismAndPool", MatchRulesFlags)
 bool FDeterminism::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Exactly ten playable definitions (Phase 3C pool)"), GetPlayableCards().Num(), 10);
@@ -269,12 +271,12 @@ bool FDeterminism::RunTest(const FString& Parameters)
         Place(A, {0,0}); Place(B, {0,0});
         TestTrue(TEXT("Fixed seed/actions reproduce full state"), A == B);
         for (const auto& Player : A.Players)
-        { for (ECardId Card : Player.Hand) { TestNotNull(TEXT("No unresolved card generated"), FindCardDefinition(Card)); } }
+        { for (ECardId Card : Player.Hand) { TestNotNull(TEXT("No unresolved card generated"), FindLegacyCardDefinition(Card)); } }
     }
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoLegalAction, "Gomokards.Phase1.UnresolvedNoLegalAction", MatchRulesFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoLegalAction, "Gomokards.LegacyFixtures.Phase1.UnresolvedNoLegalAction", MatchRulesFlags)
 bool FNoLegalAction::RunTest(const FString& Parameters)
 {
     FMatchState State;

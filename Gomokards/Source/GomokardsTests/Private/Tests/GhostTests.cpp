@@ -1,7 +1,7 @@
+#include "Legacy/LegacyRules.h"
+#include "Legacy/LegacyPresentation.h"
 #include "Core/MatchRules.h"
 #include "Presentation/MatchPresentation.h"
-#include "Runtime/LocalMatchGameMode.h"
-#include "Engine/World.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -26,7 +26,7 @@ void GhostReject(FAutomationTestBase& Test,FMatchState& S,const FActionRequest& 
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostActivation,"Gomokards.Phase3B.ActivationAndPreparation",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostActivation,"Gomokards.LegacyFixtures.Phase3B.ActivationAndPreparation",GhostFlags)
 bool FGhostActivation::RunTest(const FString& Parameters)
 {
     FMatchState S(22);
@@ -56,7 +56,7 @@ bool FGhostActivation::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostCounting,"Gomokards.Phase3B.HiddenCountingAndRestrictions",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostCounting,"Gomokards.LegacyFixtures.Phase3B.HiddenCountingAndRestrictions",GhostFlags)
 bool FGhostCounting::RunTest(const FString& Parameters)
 {
     FMatchState S(14); S.Board.At({18,18}).bForbidden=true;
@@ -82,10 +82,20 @@ bool FGhostCounting::RunTest(const FString& Parameters)
     TestTrue(TEXT("Cards return after nonterminal reveal"),CanPlayCards(S));
     TestTrue(TEXT("Retained Nuke can now be played"),ResolveAction(S,FActionRequest::Play(1,ECardId::TacticalNuke,FIntPoint(0,0))).IsAccepted());
     TestEqual(TEXT("No unexpected RNG draw"),S.Random.GetCurrentSeed(),14);
+    // Migrated from Phase5A: retain Core exhaustion behavior, without session/timer assertions.
+    FMatchState Exhausted(18);
+    for (auto& Cell : Exhausted.Board.Cells) { Cell.bForbidden=true; }
+    Exhausted.Board.At({5,5}).bForbidden=false;
+    StartHidden(Exhausted);
+    TestTrue(TEXT("Hidden has one legal placement even without card capability"),HasLegalAction(Exhausted));
+    TestTrue(TEXT("Last hidden placement accepted"),GhostPlace(Exhausted,{5,5}).IsAccepted());
+    TestTrue(TEXT("Legacy exhaustion neither reveals early nor invents winner/draw"),
+        Exhausted.Result.Status==EMatchStatus::AwaitingRuleDecision && Exhausted.Result.Decision==EDecisionReason::NoLegalAction
+        && Exhausted.GhostPhase==EGhostPhase::Hidden && Exhausted.GhostPlacementsCompleted==1);
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostRewards,"Gomokards.Phase3B.TrueColorRewardsAndConfusion",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostRewards,"Gomokards.LegacyFixtures.Phase3B.TrueColorRewardsAndConfusion",GhostFlags)
 bool FGhostRewards::RunTest(const FString& Parameters)
 {
     for (bool Confused : {false,true})
@@ -115,7 +125,7 @@ bool FGhostRewards::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostReveal,"Gomokards.Phase3B.WinSuppressionAndReveal",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostReveal,"Gomokards.LegacyFixtures.Phase3B.WinSuppressionAndReveal",GhostFlags)
 bool FGhostReveal::RunTest(const FString& Parameters)
 {
     for (int32 Outcome=0; Outcome<4; ++Outcome)
@@ -143,7 +153,7 @@ bool FGhostReveal::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostWinningReward,"Gomokards.Phase3B.WinningHiddenRewards",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostWinningReward,"Gomokards.LegacyFixtures.Phase3B.WinningHiddenRewards",GhostFlags)
 bool FGhostWinningReward::RunTest(const FString& Parameters)
 {
     for (bool Sixth : {false,true})
@@ -168,7 +178,7 @@ bool FGhostWinningReward::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostPersistence,"Gomokards.Phase3B.PersistentEffectsAndReset",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostPersistence,"Gomokards.LegacyFixtures.Phase3B.PersistentEffectsAndReset",GhostFlags)
 bool FGhostPersistence::RunTest(const FString& Parameters)
 {
     FMatchState S(82);
@@ -194,7 +204,7 @@ bool FGhostPersistence::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostPresentation,"Gomokards.Phase3B.VisibilityAndPool",GhostFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostPresentation,"Gomokards.LegacyFixtures.Phase3B.VisibilityAndPool",GhostFlags)
 bool FGhostPresentation::RunTest(const FString& Parameters)
 {
     FMatchState S;
@@ -206,8 +216,8 @@ bool FGhostPresentation::RunTest(const FString& Parameters)
     TestTrue(TEXT("Hidden label reports placements, not actions"),GhostLabel(S,0).Contains(TEXT("4 placements remaining")));
     TestTrue(TEXT("Empty stays empty; every occupied identity maps to same gray"),StoneDisplayColor(S,EStone::Empty)==FLinearColor::Transparent && StoneDisplayColor(S,EStone::Black)==StoneDisplayColor(S,EStone::White));
     TestEqual(TEXT("Exactly ten generated definitions"),GetPlayableCards().Num(),10);
-    TestTrue(TEXT("Ghost is non-targeted playable"),FindCardDefinition(ECardId::Ghost) && !FindCardDefinition(ECardId::Ghost)->RequiresTarget());
-    for (ECardId Id : {ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unimplemented card remains excluded"),FindCardDefinition(Id)); }
+    TestTrue(TEXT("Ghost is non-targeted playable"),FindLegacyCardDefinition(ECardId::Ghost) && !FindLegacyCardDefinition(ECardId::Ghost)->RequiresTarget());
+    for (ECardId Id : {ECardId::FastDuel,ECardId::Undo,ECardId::Joker}) { TestNull(TEXT("Unimplemented card remains excluded"),FindLegacyCardDefinition(Id)); }
     FMatchState A(32),B(32); StartHidden(A); StartHidden(B);
     A.Board.At({6,5}).Stone=B.Board.At({6,5}).Stone=EStone::Black;
     A.Board.At({7,5}).Stone=B.Board.At({7,5}).Stone=EStone::White;
@@ -216,54 +226,4 @@ bool FGhostPresentation::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGhostRuntimeTest,"Gomokards.Phase3B.RuntimeTimerLifecycle",GhostFlags)
-bool FGhostRuntimeTest::RunTest(const FString& Parameters)
-{
-    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
-    if (!TestNotNull(TEXT("Transient world"),World)) { return false; }
-    auto* Owner=World->SpawnActor<ALocalMatchGameMode>();
-    if (!TestNotNull(TEXT("Runtime owner"),Owner)) { World->DestroyWorld(false); return false; }
-    auto Cast=[&]()
-    {
-        // White earns the first draw against the edge; Black earns Ghost on the second draw.
-        Owner->StartWithSeed(6);
-        for (FIntPoint P : {FIntPoint(0,0),FIntPoint(1,0),FIntPoint(2,0),FIntPoint(18,18)})
-        { TestTrue(TEXT("Runtime opening accepted"),Owner->Submit(FActionRequest::Place(GhostActor(Owner->GetMatch()),P)).IsAccepted()); }
-        TestTrue(TEXT("Runtime Ghost cast accepted"),Owner->Submit(FActionRequest::Play(GhostActor(Owner->GetMatch()),ECardId::Ghost)).IsAccepted());
-    };
-    int32 Notifications=0;
-    Owner->OnMatchChanged.AddLambda([&Notifications]{++Notifications;});
-    Cast();
-    TestTrue(TEXT("One pending ticker after cast"),Owner->GhostTicker.IsValid());
-    TestTrue(TEXT("Countdown starts near five real seconds"),Owner->GhostPreparationSecondsRemaining()>4 && Owner->GhostPreparationSecondsRemaining()<=5);
-    const auto Generation=Owner->GhostTimerGeneration;
-    const double Deadline=Owner->GhostDeadline;
-    const FMatchState Before=Owner->GetMatch(); const int32 BeforeNotifications=Notifications;
-    TestTrue(TEXT("Before deadline timer continues"),Owner->PollGhostPreparation(Deadline-.01,Generation));
-    TestTrue(TEXT("Polling has no authoritative effect"),Owner->GetMatch()==Before && Notifications==BeforeNotifications);
-    Owner->Submit(FActionRequest::Place(GhostActor(Before),{8,8}));
-    TestTrue(TEXT("Rejected input never reschedules timer"),Owner->GhostTimerGeneration==Generation && Owner->GhostDeadline==Deadline && Notifications==BeforeNotifications);
-    TestFalse(TEXT("Deadline completes without sleeping"),Owner->PollGhostPreparation(Deadline,Generation));
-    FMatchState Expected=Before; BeginGhostHidden(Expected);
-    TestTrue(TEXT("Timer invokes only logical transition and one notification"),Owner->GetMatch()==Expected && Notifications==BeforeNotifications+1 && !Owner->GhostTicker.IsValid());
-    Owner->PollGhostPreparation(Deadline+1,Generation);
-    TestTrue(TEXT("Duplicate expiration is harmless"),Owner->GetMatch()==Expected && Notifications==BeforeNotifications+1);
-    Cast();
-    const uint64 OldGeneration=Owner->GhostTimerGeneration; const double OldDeadline=Owner->GhostDeadline;
-    Owner->NewMatch();
-    TestTrue(TEXT("Restart cancels ticker/countdown and restores normal phase"),!Owner->GhostTicker.IsValid() && Owner->GhostPreparationSecondsRemaining()==0 && Owner->GetMatch().GhostPhase==EGhostPhase::None);
-    const FMatchState Fresh=Owner->GetMatch();
-    Owner->PollGhostPreparation(OldDeadline+10,OldGeneration);
-    TestTrue(TEXT("Stale callback cannot transition new match"),Owner->GetMatch()==Fresh);
-    Cast(); const FMatchState NewPreparation=Owner->GetMatch();
-    Owner->PollGhostPreparation(OldDeadline+10,OldGeneration);
-    TestTrue(TEXT("Stale callback cannot transition a newer Ghost cast either"),Owner->GetMatch()==NewPreparation && Owner->GhostTicker.IsValid());
-    Owner->PollGhostPreparation(Owner->GhostDeadline,Owner->GhostTimerGeneration);
-    Owner->NewMatch();
-    TestTrue(TEXT("Runtime restart from Hidden is clean"),Owner->GetMatch()==FMatchState(Owner->GetMatch().Random.GetInitialSeed()));
-    Cast(); Owner->EndPlay(EEndPlayReason::Quit);
-    TestFalse(TEXT("Map teardown cancels preparation ticker"),Owner->GhostTicker.IsValid());
-    Owner->OnMatchChanged.Clear(); World->DestroyWorld(false);
-    return true;
-}
 #endif

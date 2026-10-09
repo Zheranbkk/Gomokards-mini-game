@@ -1,3 +1,5 @@
+#include "Legacy/LegacyRules.h"
+#include "Legacy/LegacyPresentation.h"
 #include "Core/MatchRules.h"
 #include "Presentation/MatchPresentation.h"
 #include "Misc/AutomationTest.h"
@@ -21,7 +23,7 @@ void Reject3(FAutomationTestBase& Test, FMatchState& S, const FActionRequest& Re
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPolarityResults,"Gomokards.Phase3A.PolarityAndDraw",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPolarityResults,"Gomokards.LegacyFixtures.Phase3A.PolarityAndDraw",StandardCardsFlags)
 bool FPolarityResults::RunTest(const FString& Parameters)
 {
     // Swap the two row colors to reverse which winning color a row-major scan encounters first.
@@ -67,7 +69,7 @@ bool FPolarityResults::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConfusionLifetime,"Gomokards.Phase3A.ConfusionLifetime",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConfusionLifetime,"Gomokards.LegacyFixtures.Phase3A.ConfusionLifetime",StandardCardsFlags)
 bool FConfusionLifetime::RunTest(const FString& Parameters)
 {
     FMatchState S(54);
@@ -113,7 +115,7 @@ bool FConfusionLifetime::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConfusionIdentity,"Gomokards.Phase3A.ConfusionIdentityAndReward",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConfusionIdentity,"Gomokards.LegacyFixtures.Phase3A.ConfusionIdentityAndReward",StandardCardsFlags)
 bool FConfusionIdentity::RunTest(const FString& Parameters)
 {
     for (EStone Assigned : {EStone::Black,EStone::White})
@@ -133,7 +135,7 @@ bool FConfusionIdentity::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBarrierTopology,"Gomokards.Phase3A.BarrierTopology",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBarrierTopology,"Gomokards.LegacyFixtures.Phase3A.BarrierTopology",StandardCardsFlags)
 bool FBarrierTopology::RunTest(const FString& Parameters)
 {
     int32 Valid=0;
@@ -165,7 +167,7 @@ bool FBarrierTopology::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBarrierWins,"Gomokards.Phase3A.BarrierWinningLines",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBarrierWins,"Gomokards.LegacyFixtures.Phase3A.BarrierWinningLines",StandardCardsFlags)
 bool FBarrierWins::RunTest(const FString& Parameters)
 {
     const FIntPoint TestLineDirections[]={{1,0},{0,1},{1,1},{1,-1}};
@@ -190,7 +192,7 @@ bool FBarrierWins::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicsLock,"Gomokards.Phase3A.BackToBasics",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBasicsLock,"Gomokards.LegacyFixtures.Phase3A.BackToBasics",StandardCardsFlags)
 bool FBasicsLock::RunTest(const FString& Parameters)
 {
     FMatchState S(65);
@@ -265,7 +267,7 @@ bool FBasicsLock::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPool3,"Gomokards.Phase3A.PoolAndDeterminism",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPool3,"Gomokards.LegacyFixtures.Phase3A.PoolAndDeterminism",StandardCardsFlags)
 bool FPool3::RunTest(const FString& Parameters)
 {
     const TArray<ECardId> Expected={ECardId::Restock,ECardId::SwapHands,ECardId::Steal,ECardId::TacticalNuke,ECardId::Polarity,ECardId::Confusion,ECardId::Barrier,ECardId::BackToBasics,ECardId::Ghost,ECardId::Tetris};
@@ -288,7 +290,7 @@ bool FPool3::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetDomains3,"Gomokards.Phase3A.PresentationDomains",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTargetDomains3,"Gomokards.LegacyFixtures.Phase3A.PresentationDomains",StandardCardsFlags)
 bool FTargetDomains3::RunTest(const FString& Parameters)
 {
     for (int32 Y=0; Y<18; ++Y) for (int32 X=0; X<18; ++X)
@@ -333,7 +335,7 @@ bool FTargetDomains3::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManualReplay3,"Gomokards.Phase3A.ReachableManualSetups",StandardCardsFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManualReplay3,"Gomokards.LegacyFixtures.Phase3A.ReachableManualSetups",StandardCardsFlags)
 bool FManualReplay3::RunTest(const FString& Parameters)
 {
     // Replay documentation setups exclusively through public actions, with naturally earned cards.
