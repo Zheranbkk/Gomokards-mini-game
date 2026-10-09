@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "GameFramework/WorldSettings.h"
 #include "GameFramework/GameModeBase.h"
+#include "Singleplayer/SingleplayerBattleGameMode.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Fonts/CompositeFont.h"
 
@@ -119,12 +120,12 @@ bool FSharedAssets::RunTest(const FString&)
     TestTrue(TEXT("Bundled CJK font exists"),IFileManager::Get().FileExists(*(FPaths::EngineContentDir()/TEXT("Slate/Fonts/DroidSansFallback.ttf"))));
     FString Mode;
     GConfig->GetString(TEXT("/Script/EngineSettings.GameMapsSettings"),TEXT("GlobalDefaultGameMode"),Mode,GEngineIni);
-    TestEqual(TEXT("Empty engine startup owner, no project runtime"),Mode,FString(TEXT("/Script/Engine.GameModeBase")));
+    TestEqual(TEXT("Active SP1 startup owner"),Mode,FString(TEXT("/Script/Gomokards.SingleplayerBattleGameMode")));
     auto* Map=LoadObject<UWorld>(nullptr,TEXT("/Game/Maps/LocalMatch.LocalMatch"));
     if (TestNotNull(TEXT("Unchanged startup map loads after removal"),Map))
     {
         const auto* Settings=Map->GetWorldSettings();
-        TestTrue(TEXT("Map has no removed project GameMode override"),Settings && (!Settings->DefaultGameMode || Settings->DefaultGameMode==AGameModeBase::StaticClass()));
+        TestTrue(TEXT("Map cannot override away the active singleplayer runtime"),Settings && (!Settings->DefaultGameMode || Settings->DefaultGameMode==ASingleplayerBattleGameMode::StaticClass()));
     }
     return true;
 }

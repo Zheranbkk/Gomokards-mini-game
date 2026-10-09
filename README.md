@@ -1,8 +1,8 @@
 # Gomokards Card Gomoku
 
-> **当前活动产品线：单人 Roguelike（SP0.5 架构基线，尚无单人对局）。**
+> **当前活动产品线：单人 Roguelike（SP1 单人核心战斗原型，人工玩法验收待完成）。**
 > 活动分支为 `singleplayer-roguelike`。多人 Demo v0.1.2 保存在 `multiplayer-v0.1.2` 与 `demo-v0.1.2-multiplayer`，源提交 `b975b6310128a4113d5a118acfc5f1d280586623`。
-> 下方 pygame、UE Phase 0–6 与 Demo 操作说明属于历史记录；其中多人启动、十张牌池及旧随机奖励不适用于当前活动 Game target。SP0.5 替代 SP0 中“保留多人运行时并行编译”的工程建议，产品规则以文末冻结规则为准。
+> 下方 pygame、UE Phase 0–6 与 Demo 操作说明属于历史记录；其中多人启动、十张牌池及旧随机奖励不适用于当前活动 Game target。SP0.5 替代 SP0 中“保留多人运行时并行编译”的工程建议；当前实现与验收状态以文末 SP1 章节为准。
 
 
 ## Refactoring Progress
@@ -1734,7 +1734,7 @@ Gomokards.Shared.TetrisPhysicalStep
 - Win64 Development Game：**通过**，生成 `Gomokards.exe`；未 Cook、Stage 或 Package。
 - 完整 `Automation RunTests Gomokards`：**43 通过、0 失败、0 测试警告、0 跳过/未运行、0 进行中**；其中历史 Core 夹具 37 组、共享接口 6 组。启动地图、贴图、字体、显示委托、无手牌棋盘效果和物理锁定接口均通过。不是人工玩法验收。
 - 测试日志之外的 Editor 初始化日志有 **1 条布局版本兼容警告**（`UnrealEd_Layout_v1.5/v1.6`），不是测试失败；未修改布局配置入库。日志没有 Error 记录。最终 Editor/Game 编译日志没有 C++ warning/error。
-- 源码/配置搜索指定项目网络符号：**0 残留**。扩大搜索 network/replication/server/client/RPC/epoch/session 后仅命中 Editor 测试的一条历史迁移说明；`LocalMatch` 仅为保留地图资源名，均非网络实现。
+- 源码/配置搜索指定项目网络符号：**0 残留**。扩大源码搜索 network/replication/server/client/RPC/epoch/session 后仅命中 Editor 测试的一条历史迁移说明；配置另有 UE 自带 AndroidFileServer 的网络选项，未裁剪引擎插件。`LocalMatch` 仅为保留地图资源名，均非项目多人运行实现。
 - 实际 Game 链接响应文件 `Gomokards.exe.rsp` 只有 10 个项目运行源文件对应的对象：模块入口、CardDefinitions、MatchState、MatchRules、BoardEffects、TetrisRules、MatchPresentation、DemoPresentation、SDemoCards、SMatchBoard；没有 GomokardsTests、Legacy、原网络 Runtime 对象或测试对象。Editor 测试模块未进入 Game target。此结论不是包体大小估算，未裁剪引擎/插件网络能力。
 - 暂存差异检查通过：没有 Binaries/Intermediate/Saved/DDC、日志、缓存或二进制资产修改。所有本次工程产物、验证日志与报告位于 G 盘；本机报告为 `G:\GameDev\Logs\SP05\Automation\index.json`。
 
@@ -1757,6 +1757,135 @@ foreach ($spDir in @('Intermediate','Binaries')) {
     if (Test-Path -LiteralPath $spPath) {
         $spResolved = (Resolve-Path -LiteralPath $spPath).Path
         if ($spResolved -ne ($spProjectRoot + '\' + $spDir)) { throw 'Clean path mismatch' }
+        Remove-Item -LiteralPath $spResolved -Recurse -Force
+    }
+}
+& 'G:\GameDev\Unreal\UE_5.8\Engine\Build\BatchFiles\Build.bat' GomokardsEditor Win64 Development '-Project=G:\GameDev\Projects\Gomokards-mini-game\Gomokards\Gomokards.uproject' -WaitMutex -NoHotReloadFromIDE
+```
+
+## SP1 — Singleplayer Core Battle Prototype
+
+本阶段从已接受的 `82a33acd13ea202d9c8a623f3ce30f78a7ba35da` 实施一场人类对 AI 的 19×19 战斗，用于验证“花费整回合抽牌或出牌，相比落子是否有趣”。活动分支仍为 `singleplayer-roguelike`。多人分支 `multiplayer-v0.1.2` 与标签 `demo-v0.1.2-multiplayer` 保持指向 `b975b6310128a4113d5a118acfc5f1d280586623`；`ue-migration` 不修改。
+
+### 权威状态、所有权与变更边界
+
+| 数据 | 所有者与唯一真值 | 变更、重置及测试边界 |
+|---|---|---|
+| 棋盘、当前方、结果、行动计数 | `ASingleplayerBattleGameMode::Battle.Match` | `FSingleplayerBattleState` 组合原 `FMatchState`；只通过单人解析器候选副本提交及 `Reset` 变更。棋盘算法没有复制 |
+| 玩家资源 | `Battle.PlayerDeck` | 四个数组 `DrawPile/Hand/DiscardPile/ExhaustPile`；只有玩家拥有。每场构造固定 8 个实例；测试检查实例互斥、定义不变、总数守恒与上限 |
+| 牌堆随机状态 | `Battle.DeckRandom` | 初始牌组洗牌与必要回洗才采样；拒绝不推进。`Match.Random` 保留但 SP1 不消费。相等比较包含两个流的初始种子和当前种子 |
+| AI 决策 | `ChooseSingleplayerMove(const FBoard&)` | 只接收棋盘，只返回可选坐标；本地临时棋盘用于评分，无牌堆、手牌、随机数或运行对象访问 |
+| 待执行 AI | GameMode 的 timer、generation 与权威行动序号 | 下一帧回调核对代次、序号、当前方与结果；重开和 `EndPlay` 清 timer 并失效旧任务。`ExecutePendingAI` 为实际回调与无真实等待测试的共同边界 |
+| 本地选择与反馈 | `ASingleplayerBattlePlayerController` | `FSingleplayerSelection` 只管理目标实例、目标卡和换牌模式；右键、接受行动、重开通知清理；不是战斗字段 |
+| 展示快照 | Controller 的 `FSingleplayerView` | 从提交后的 Battle 派生，只含棋盘、结果、当前方、手牌及牌堆数量等必要信息；Slate 读取 const 展示接口，点击只发送意图。快照不是第二份可写战斗真值 |
+| 对局记录 | GameMode 中最多 12 条文本 | 只在行动提交后追加，重开清空；没有事件基础设施 |
+
+`Match.Players[0].Hand`、`Match.Players[1].Hand` 始终为空；旧 Confusion、Ghost、Tetris 和禁卡状态保持未激活。旧 Editor 私有夹具继续独立验证历史规则，SP1 不调用它们的 resolver 或抽卡池。
+
+### 行动与牌堆事务
+
+- 玩家固定执黑先行，AI 固定执白。每个玩家回合只接受一次落子、出牌、抽牌/换牌；随后 AI 只落一子。没有自动回合抽牌。成功落子和成功出牌/抽牌各只增加一次行动计数；终局后不换方，也不再执行 AI。
+- `FSingleplayerActionRequest` 明确区分 `PlaceStone/PlayCard/Draw/Replace`，携带预期行动数、需要时的卡实例 ID 与目标坐标。运行入口另核对战斗 generation。拒绝过期、非本方、终局、非法目标、无持有实例及不合资格的请求，不修改棋盘、牌堆、计数、轮次或 RNG。
+- `FSingleplayerActionResult` 返回错误、`bSuccessfulBlock`、实际抽取数、打出卡定义及终局结果；没有通用事件流。
+- 固定 8 张为两极反转、阴阳屏障、战术核弹、补充库存各 2。每张拥有稳定的战斗内 `InstanceId`（0–7）。按该顺序建牌组，用 `DeckRandom` 做 Fisher–Yates 洗牌；数组末尾为堆顶，起手抽 3，手牌上限 5。
+- **Draw**：未满手时抽恰好 1 张，成功结束回合。DrawPile 和可用 DiscardPile 都为空则整个行动拒绝。
+- **Replace**：只接受满 5 张时选定的一个实例。候选事务中先移出旧牌，再抽 1，最后才把旧牌加入弃牌堆；旧牌不能参与本次回洗或立即抽回。无来源则整个事务回滚，包括手牌原顺序和 RNG。
+- **普通出牌**：先验证持有与目标，在候选副本中移出精确实例，执行完整效果及内部抽牌，最后才放入弃牌堆。合法但无棋盘变化的操作保留既有语义，仍消费一回合。
+- **回洗**：仅在还需要抽牌且 DrawPile 为空时，把可用 DiscardPile 整体移入 DrawPile、清空 DiscardPile，再确定性洗牌。当前出牌/换牌作为事务局部值留在四区之外，提交前归入弃牌；ExhaustPile 从不参与回洗。
+- **Restock**：先离手，逐张抽取至多 3 张，到 5 张手牌或没有来源即停止。装不下的额度不抽、不丢、不烧、不跳过，也不触发多余洗牌。本牌在效果结束后才弃置，不能抽回自身。即使抽到 0 张也是合法出牌。
+- 四张基础牌都不 Exhaust；空 ExhaustPile 仅作为战斗资源区域表示，没有 Run 归还或持久化功能。
+
+### 四张牌与棋盘复用
+
+| SP1 卡牌 | 实现与裁决 |
+|---|---|
+| 两极反转 | 调用唯一 `ApplyPolarity`；完整 2×2 翻转已有棋色，空点保持；随后 `EvaluateBoardResult` 全板判定。黑胜为玩家胜，白胜为 AI 胜，同时成线为 Draw |
+| 阴阳屏障 | 调用唯一 `ApplyBarrier`；沿用格心目标及四角六条连接阻断语义，不占交点，持续本场 |
+| 战术核弹 | 调用唯一 `ApplyTacticalNuke`；清空交点并永久禁用该点，保留原有合法空点/重复目标语义 |
+| 补充库存 | 使用上述有限牌堆事务，说明为“抽取至多 3 张牌，手牌最多 5 张。”；不是旧十卡池随机生成 |
+
+玩家和 AI 落子均调用共享 `TryPlaceStone`，连线及 Barrier 连通性沿用既有 Core。成功封堵只报告 `bSuccessfulBlock`，不生成牌、不抽牌、不消费随机数；包含获胜落子的封堵。没有实现防守反击。
+
+### AI、无落点与运行生命周期
+
+AI 穷举合法交点，优先自己一步获胜，再封堵黑方一步获胜点，否则使用白方连线发展、黑方连线潜力和较小中心偏好的静态整数评分；相同评分取稳定行优先顺序。胜负模拟复用 `TryPlaceStone/HasWinningLine`，连线评分尊重 `FBoard::IsLinkBlocked`，禁点不能选。没有随机平局、深度搜索或外部 AI。
+
+GameMode 在玩家事务提交后安排一次下一帧 AI，先取只读意图，再经 `ResolveAIPlacement` 校验并提交。没有人为思考延迟；AI 回合状态通常很短。AI 回合无合法落点且没有胜方时判 Draw，不制造落子计数或 pass；防御性无落点裁决仍先保留已有胜方。
+
+`HasPlayerMainAction` 显式查询合法落子、可出四牌、抽牌/换牌。固定 8 张牌守恒、四卡均有合法使用且不 Exhaust 的 SP1 可达状态中，玩家总能持有可出牌或从正常牌区抽牌，因此没有新增“玩家无行动”裁决规则。人工构造全部 Exhaust 的空资源状态能被查询识别，但不属于 SP1 可达玩法。
+
+`?Seed=<整数>` 控制初始化种子。未提供时仅在创建 runtime 时选随机种子；**重新开始沿用本次种子**，恢复同一初始牌序、黑方先手、空棋盘和零计数。代次递增阻止旧请求在相同行动编号下误入新战斗。Controller 重订阅/结束时解绑，重开通知清目标、换牌模式与反馈。
+
+### 界面与启动
+
+`/Game/Maps/LocalMatch` 保持原资源，未新建或重命名地图；配置的 `GlobalDefaultGameMode` 改为 `SingleplayerBattleGameMode`，直接进入单人战斗。新增 `SSingleplayerBattleView` 仅做本地组合，复用 `SMatchBoard`、`SDemoHand`、`FDemoCardArt`、原中文字体、卡面占位图、目标几何和悬停/重叠效果，保留浅色面板、木色棋盘及终局覆盖层。
+
+中央棋盘、底部玩家手牌、左右状态/记录面板；顶部没有对手牌背。显示玩家黑方、AI 白方、当前回合、手牌/抽牌堆/弃牌堆/移出数量。抽牌按钮在 5/5 时变“换牌”，进入本地选一张牌模式。三张目标牌点击后预览，合法目标才提交；无效目标不弃牌。右键取消，重点击同一目标牌可取消；**Esc 始终退出，不能用来取消选牌**。左上保留“退出游戏”，侧面提供“重新开始”。AI 回合与终局禁止玩法输入，重开/退出仍可用。没有 AI 手牌、Boss 空面板或 UI 主题重做。
+
+### 工程选择与范围
+
+- 相比允许的“手牌索引加校验”，实际使用稳定实例 ID，`SDemoHand` 的槽位事件在 Controller 选择层映射到实例。原因是重复卡识别更直接，跨回洗守恒断言更强；涉及 `SingleplayerBattle`、`SingleplayerPresentation`、Controller 和对应事务/选择测试，没有改变手牌顺序规则或卡牌产品语义。
+- AI 选择下一帧调度而非人为延时；复用一个 UE timer，加 generation/行动编号检查与可直接执行的测试入口，不建立计时框架。
+- 保留全部原 43 组。`Shared.FontArtAndStartupAssets` 将 SP0.5 的“引擎空 GameMode”断言替换为真实 SP1 启动入口，并要求地图不能覆盖成其他 GameMode；贴图、字体及其他共享断言不删减。
+- 无 Boss、Run、棋诀、商店、奖励、存档、升级或四牌以外新卡；无 RPC、复制字段、网络 DTO、会话或假远程玩家；无通用技能/事件/AI 框架。多人冻结引用保持不变。未进行 Cook、Stage 或 Package。
+
+### 自动验证与人工验收状态
+
+- 2026-10-09，UE 5.8.2，Win64 Development Editor：**通过**。确认 Editor 关闭、核验绝对路径后清理本项目 `Intermediate/Binaries`，完整重新编译运行源码与测试；最后对种子初始化和加强后的启动断言增量构建通过。最终编译日志无 C++ warning/error。
+- Win64 Development Game：**通过**，生成 `Gomokards.exe`；未打包。链接响应文件仅含 16 个项目运行源文件对象及 UHT 生成对象等正常构建输入，没有 `GomokardsTests`、Legacy 或测试对象。
+- 完整 `Automation RunTests Gomokards` 导出报告：**55 通过、0 失败、0 测试警告、0 跳过/未运行、0 进行中**。其中旧夹具 37、共享 6、新单人 12。报告为 `Gomokards/Saved/Automation/SP1-Final/index.json`，日志为 `Gomokards/Saved/Logs/SP1-Automation-Final.log`，均在 G 盘忽略目录。
+- 初轮报告为 55 组全部断言通过，其中一个资产测试因沙箱证书限制捕获 16 条引擎 EOS 后台连接警告。最终使用正常本机权限执行完整套件，测试警告为 0；未删除断言、过滤警告或修改 EOS/网络产品配置。最终测试外初始化日志只有既有 `UnrealEd_Layout_v1.5/v1.6` 布局兼容警告，无 Error 记录。
+- 新增测试：`Initialization`、`DrawAtomicity`、`ReplaceAtomicity`、`ReshuffleConservation`、`RestockTimingAndCap`、`PlacementNoRewardAndTerminal`、`BoardCardsAndPolarityResults`、`AIPolicyAndTurnSequence`、`AIDeterminismAndNoPlacement`、`SelectionAndDisplayBoundary`、`RestartAndRuntimeLifecycle`、`ManualSeedRecipe`，统一前缀 `Gomokards.Singleplayer`。
+- 静态核对：唯一权威 Board/Result/Turn；SP 资源不写旧 Hand；AI 只返回意图；三棋盘效果和落子调用共享实现；无封堵自动奖励；无多人/单人分支扩散、项目 RPC/复制/网络 DTO、Run 或通用框架。差异仅包含 13 个新增源码/头文件/测试与启动配置、已有启动测试、README；没有地图、资产、生成目录、缓存或包体进入提交。
+
+人工 PIE / 玩法验收：**PENDING**。代理不进行游戏操作；测试中的核心事务和瞬态 World fixture 不等于人工玩法通过。已知限制为固定原型牌组、单场战斗和浅层确定性 AI；多个同时威胁可能无法防住，AI 下一帧行动通常不会长时间显示“AI 回合”。抽牌/出牌是否有趣以及实际界面、焦点和退出体验仍须用户试玩。
+
+### 固定种子人工 PIE 配方（待用户执行）
+
+自动化找到并验证 **`?Seed=1`**：起手从左到右为 **阴阳屏障、补充库存、两极反转**；玩家黑方先行，手牌 3、抽牌堆 5、弃牌 0、移出 0。以左上为 `(1,1)`，第一步在棋盘正中心 `(10,10)` 落黑子，AI 恰好落一颗白子到 `(10,9)`；随后回到玩家回合，手牌仍为 3，抽牌堆仍为 5。
+
+关闭已有 Editor 后，从 PowerShell 启动带 PIE URL 选项的编辑器；这是进程启动覆盖，不修改项目配置。该入口依据本机 UE 5.8 的 `UEditorEngine::BuildPlayWorldURL` 核对，它会追加 `InEditorGameURLOptions`：
+
+```powershell
+. G:\GameDev\Tools\Set-DevEnvironment.ps1
+& 'G:\GameDev\Unreal\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe' `
+  'G:\GameDev\Projects\Gomokards-mini-game\Gomokards\Gomokards.uproject' `
+  '/Game/Maps/LocalMatch' `
+  '-ini:Engine:[/Script/UnrealEd.EditorEngine]:InEditorGameURLOptions=?Seed=1'
+```
+
+在 Play 设置中选 **1 个玩家、Play Standalone、Run Under One Process**，使用 Selected Viewport 或 New Editor Window 的 PIE。不要沿用历史多人 PIE 设置。进入后按上述起手核对种子。重新开始会恢复这组起手；未带种子的新进程不保证同一起手。
+
+人工清单：
+
+1. 直接出现单人棋盘；玩家黑方先行，AI 白方且没有手牌区域；数量为 3/5/0/0。按上述中心开局核对一次 AI 回应。
+2. 分别测试落子、抽牌、出牌各花费一个玩家回合，之后只出现一次 AI 落子；普通封堵不增加手牌或改变抽牌堆数量。
+3. 点击阴阳屏障或两极反转，观察原有目标预览；右键或重点击同牌取消，卡牌及回合不变。核弹进入手牌后验证清空并禁点；非法目标不消费牌。
+4. 连续两个玩家回合抽牌可达 5 张，按钮变“换牌”；点击后右键取消零变化，再选一张完成替换。观察手牌仍为 5、弃牌增加、AI 只回应一次。
+5. 满手打出补充库存只补 1 张；手牌为 3 时打出补充库存最多补 3 至 5。没有超限、烧牌或自动回合抽牌。
+6. 重开后先打起手补充库存：手牌 5、抽牌堆 2、弃牌 1。随后连续三个玩家回合各替换一张，抽牌/弃牌数量依次为 `1/2 → 0/3 → 2/1`，第三次替换自然触发回洗；此时 AI 只落了四子，不会因无人防守提前成五。正在替换的实例最后才进入弃牌堆；可能抽到另一份同名牌，这不等于抽回原实例。
+7. 自然对局中检查 AI 立即成五和封堵明显单点威胁；它不保证解决多个同时威胁。完成对局后核对玩家胜/AI 胜/平局覆盖层与输入冻结；三种裁决已有自动化 fixture，人工观感仍待验收。
+8. 在目标选择、换牌选择及终局时测试重新开始：空棋盘、同样起手、黑方先手，没有旧 AI 补落。左上“退出游戏”和 Esc 结束 PIE/退出应用，Esc 不作为取消选择。
+
+### 本机同步与干净构建 SP1
+
+先保存并关闭 Editor。命令只清理此项目的 `Intermediate` 与 `Binaries`，不强制丢弃未提交工作：
+
+```powershell
+. G:\GameDev\Tools\Set-DevEnvironment.ps1
+Set-Location -LiteralPath 'G:\GameDev\Projects\Gomokards-mini-game'
+git switch singleplayer-roguelike
+if ($LASTEXITCODE -ne 0) { throw '分支切换失败，请先处理本地差异。' }
+git pull --ff-only origin singleplayer-roguelike
+if ($LASTEXITCODE -ne 0) { throw '同步失败，请先处理本地差异。' }
+if (Get-Process UnrealEditor* -ErrorAction SilentlyContinue) { throw '请先关闭 Unreal Editor。' }
+$spProjectRoot = (Resolve-Path -LiteralPath '.\Gomokards').Path
+if ($spProjectRoot -ne 'G:\GameDev\Projects\Gomokards-mini-game\Gomokards') { throw '项目路径不匹配。' }
+foreach ($spDir in @('Intermediate','Binaries')) {
+    $spPath = Join-Path $spProjectRoot $spDir
+    if (Test-Path -LiteralPath $spPath) {
+        $spResolved = (Resolve-Path -LiteralPath $spPath).Path
+        if ($spResolved -ne ($spProjectRoot + '\' + $spDir)) { throw '清理路径不匹配。' }
         Remove-Item -LiteralPath $spResolved -Recurse -Force
     }
 }
